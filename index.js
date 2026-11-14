@@ -1712,7 +1712,8 @@ function buildAyarDashboard(guildDb) {
                 { label: 'Özel Yasaklı Kelime Ekle', description: 'Sunucunuza özel yasaklanacak kelime ekleyin.', value: 'add_custom_kufur' },
                 { label: 'Özel Yasaklı Kelimeleri Listele / Sil', description: 'Eklediğiniz özel yasaklı kelimeleri görün veya silin.', value: 'list_custom_kufur' },
                 { label: 'Bot Beyaz Listesi Ekle / Çıkar', description: 'Sunucuya bot ekleme izni olan bot ve üyeleri yönetin.', value: 'manage_bot_whitelist' },
-                { label: 'Bot Durum Mesajı Ayarla (Oynuyor)', description: 'Bot profilinde görünecek "Oynuyor..." yazısını düzenleyin.', value: 'set_bot_status' }
+                { label: 'Bot Durum Mesajı Ayarla (Oynuyor)', description: 'Bot profilinde görünecek "Oynuyor..." yazısını düzenleyin.', value: 'set_bot_status' },
+                { label: 'Ses Odası Açma Panelini Kanala Gönder', description: 'Metin kanalına "Oda Oluştur" butonlu mesaj paneli atar.', value: 'send_temp_vc_panel' }
             ])
     );
 
@@ -3195,6 +3196,34 @@ client.once('ready', async () => {
             ]
         },
         {
+            name: 'ses-paneli',
+            description: 'Üyelerin "Oda Oluştur" butonuyla özel ses odası açacağı paneli kanala gönderir (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString(),
+            options: [
+                {
+                    name: 'kanal',
+                    type: 7,
+                    description: 'Panelin gönderileceği metin kanalı (Boş bırakılırsa bulunduğunuz kanal)',
+                    channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement],
+                    required: false
+                }
+            ]
+        },
+        {
+            name: 'oda-paneli',
+            description: 'Üyelerin "Oda Oluştur" butonuyla özel ses odası açacağı paneli kanala gönderir (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString(),
+            options: [
+                {
+                    name: 'kanal',
+                    type: 7,
+                    description: 'Panelin gönderileceği metin kanalı (Boş bırakılırsa bulunduğunuz kanal)',
+                    channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement],
+                    required: false
+                }
+            ]
+        },
+        {
             name: 'hapis',
             description: 'Kullanıcıyı belirtilen süre ve sebeple cezalıya (hapis) atar.',
             options: [
@@ -3551,6 +3580,28 @@ client.on('interactionCreate', async interaction => {
                 const mesaj = interaction.options.getString('mesaj');
                 await interaction.channel.send(mesaj);
                 return safeReply(interaction, { content: 'Mesaj başarıyla kanala gönderildi.', ephemeral: true });
+            }
+
+            if (['ses-paneli', 'oda-paneli'].includes(commandName)) {
+                if (!isAdmin) return safeReply(interaction, { content: 'Bu komutu sadece Sunucu Yöneticileri kullanabilir.', ephemeral: true });
+
+                const targetChannel = interaction.options.getChannel('kanal') || interaction.channel;
+                if (!targetChannel || !targetChannel.isTextBased()) {
+                    return safeReply(interaction, { content: '❌ Lütfen geçerli bir metin kanalı belirtin.', ephemeral: true });
+                }
+
+                try {
+                    await targetChannel.send(buildTempVoiceCreatorPanel());
+                    return safeReply(interaction, {
+                        content: `✅ Özel Ses Odası Oluşturma Paneli başarıyla <#${targetChannel.id}> kanalına gönderildi!`,
+                        ephemeral: true
+                    });
+                } catch (err) {
+                    return safeReply(interaction, {
+                        content: `❌ Panel gönderilirken bir hata oluştu: ${err.message}`,
+                        ephemeral: true
+                    });
+                }
             }
 
             if (['hapis', 'af', 'sil'].includes(commandName)) {
@@ -4504,6 +4555,19 @@ client.on('interactionCreate', async interaction => {
                     return interaction.showModal(modal);
                 }
 
+                if (secim === 'send_temp_vc_panel') {
+                    const chSelect = new ActionRowBuilder().addComponents(
+                        new ChannelSelectMenuBuilder()
+                            .setCustomId('select_send_temp_vc_panel_ch')
+                            .setPlaceholder('Ses Odası Panelinin gönderileceği metin kanalını seçin...')
+                            .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
+                            .setMaxValues(1)
+                    );
+                    const panelData = buildAyarDashboard(db[guildId]);
+                    panelData.components.push(chSelect);
+                    return interaction.update(panelData);
+                }
+
                 // Topluluk Duyuru Kanalları (GuildAnnouncement) Desteği
                 const chTypeMap = {
                     'duyuruKanal': [ChannelType.GuildText, ChannelType.GuildAnnouncement],
@@ -4958,6 +5022,28 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.isChannelSelectMenu()) {
+            if (interaction.customId === 'select_send_temp_vc_panel_ch') {
+                if (!isAdmin) return interaction.reply({ content: 'Yetkiniz yok.', ephemeral: true });
+                const chId = interaction.values[0];
+                const targetCh = interaction.guild.channels.cache.get(chId) || await interaction.guild.channels.fetch(chId).catch(() => null);
+                if (!targetCh) return interaction.reply({ content: '❌ Belirtilen metin kanalı bulunamadı.', ephemeral: true });
+
+                try {
+                    await targetCh.send(buildTempVoiceCreatorPanel());
+                    return interaction.update({
+                        content: `✅ Özel Ses Odası Oluşturma Paneli başarıyla <#${targetCh.id}> kanalına gönderildi!`,
+                        components: [],
+                        embeds: []
+                    });
+                } catch (e) {
+                    return interaction.update({
+                        content: `❌ Panel gönderilirken hata oluştu: ${e.message}`,
+                        components: [],
+                        embeds: []
+                    });
+                }
+            }
+
             if (interaction.customId === 'select_br_target_channel') {
                 if (!isAdmin && !isYetkili) {
                     return interaction.reply({ content: '❌ Bu işlemi sadece **Yöneticiler ve Yetkililer** gerçekleştirebilir.', ephemeral: true });
