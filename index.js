@@ -1664,7 +1664,7 @@ function buildAyarDashboard(guildDb) {
         .setColor(0x2b2d31)
         .addFields(
             { name: '👥 Rol Yapılandırması', value: `Yetkili: ${getRole(guildDb.yetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
-            { name: '🎙️ Ses ve Yayın', value: `Oda Oluşturucu: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
+            { name: '🎙️ Ses ve Yayın', value: `Oda Paneli Kanalı: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
             { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
         );
 
@@ -1703,7 +1703,7 @@ function buildAyarDashboard(guildDb) {
                 { label: 'Sicilli Rolü Seç', description: 'Sicili bozulan üyelere verilecek uyarı rolü.', value: 'sicilRol' },
                 { label: 'Oto-Rol (Giriş Rolü) Seç', description: 'Sunucuya yeni katılan üyelere otomatik verilecek rol.', value: 'otoRol' },
                 { label: 'Oto-Rolü Sıfırla / Kaldır', description: 'Otomatik giriş rolü vermeyi kapatır.', value: 'reset_oto_rol' },
-                { label: 'Geçici Oda Oluşturucu Ses Kanalı Seç', description: 'Üyelerin tıkladığında özel oda açacağı ses kanalı.', value: 'odaKanal' },
+                { label: 'Geçici Oda Paneli Metin Kanalı Seç (Ve Paneli Kur)', description: 'Metin kanalına "Oda Oluştur" butonlu paneli kurar ve gönderir.', value: 'odaKanal' },
                 { label: 'Geçici Oda Kategorisi Seç', description: 'Açılan özel ses odalarının toplanacağı kategori.', value: 'odaKategori' },
                 { label: 'Yayın & İçerik Duyuru Kanalı Seç', description: 'YouTube, Kick ve Twitch bildirimlerinin paylaşılacağı metin kanalı.', value: 'duyuruKanal' },
                 { label: 'Duyuru Bildirim Rolü Seç', description: 'Duyurularda etiketlenecek rol (Atanmazsa @everyone).', value: 'duyuruRol' },
@@ -1712,8 +1712,7 @@ function buildAyarDashboard(guildDb) {
                 { label: 'Özel Yasaklı Kelime Ekle', description: 'Sunucunuza özel yasaklanacak kelime ekleyin.', value: 'add_custom_kufur' },
                 { label: 'Özel Yasaklı Kelimeleri Listele / Sil', description: 'Eklediğiniz özel yasaklı kelimeleri görün veya silin.', value: 'list_custom_kufur' },
                 { label: 'Bot Beyaz Listesi Ekle / Çıkar', description: 'Sunucuya bot ekleme izni olan bot ve üyeleri yönetin.', value: 'manage_bot_whitelist' },
-                { label: 'Bot Durum Mesajı Ayarla (Oynuyor)', description: 'Bot profilinde görünecek "Oynuyor..." yazısını düzenleyin.', value: 'set_bot_status' },
-                { label: 'Ses Odası Açma Panelini Kanala Gönder', description: 'Metin kanalına "Oda Oluştur" butonlu mesaj paneli atar.', value: 'send_temp_vc_panel' }
+                { label: 'Bot Durum Mesajı Ayarla (Oynuyor)', description: 'Bot profilinde görünecek "Oynuyor..." yazısını düzenleyin.', value: 'set_bot_status' }
             ])
     );
 
@@ -3510,11 +3509,12 @@ client.once('ready', async () => {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Çift komut oluşmaması için sunucuya özel komutları temizle (Yalnızca global komutlar kalır)
+    // Yeni eklenen komutların Discord global önbelleğini beklemeden anında (0 sn) görünmesi için sadece yenileri sunucuya tanımla:
+    const newInstantCommands = commands.filter(c => ['ses-paneli', 'oda-paneli'].includes(c.name));
     for (const guild of client.guilds.cache.values()) {
         try {
-            await guild.commands.set([]);
-            addLiveLog(`✅ [KOMUT]: ${guild.name} sunucusundaki yerel kopyalar temizlendi (çift komut önlendi).`);
+            await guild.commands.set(newInstantCommands);
+            addLiveLog(`✅ [KOMUT]: ${guild.name} sunucusuna anlık /ses-paneli komutları tanımlandı.`);
         } catch (err) { }
     }
 });
@@ -4555,23 +4555,10 @@ client.on('interactionCreate', async interaction => {
                     return interaction.showModal(modal);
                 }
 
-                if (secim === 'send_temp_vc_panel') {
-                    const chSelect = new ActionRowBuilder().addComponents(
-                        new ChannelSelectMenuBuilder()
-                            .setCustomId('select_send_temp_vc_panel_ch')
-                            .setPlaceholder('Ses Odası Panelinin gönderileceği metin kanalını seçin...')
-                            .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement])
-                            .setMaxValues(1)
-                    );
-                    const panelData = buildAyarDashboard(db[guildId]);
-                    panelData.components.push(chSelect);
-                    return interaction.update(panelData);
-                }
-
                 // Topluluk Duyuru Kanalları (GuildAnnouncement) Desteği
                 const chTypeMap = {
                     'duyuruKanal': [ChannelType.GuildText, ChannelType.GuildAnnouncement],
-                    'odaKanal': [ChannelType.GuildVoice],
+                    'odaKanal': [ChannelType.GuildText, ChannelType.GuildAnnouncement],
                     'odaKategori': [ChannelType.GuildCategory]
                 };
                 if (chTypeMap[secim]) {
@@ -5022,28 +5009,6 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.isChannelSelectMenu()) {
-            if (interaction.customId === 'select_send_temp_vc_panel_ch') {
-                if (!isAdmin) return interaction.reply({ content: 'Yetkiniz yok.', ephemeral: true });
-                const chId = interaction.values[0];
-                const targetCh = interaction.guild.channels.cache.get(chId) || await interaction.guild.channels.fetch(chId).catch(() => null);
-                if (!targetCh) return interaction.reply({ content: '❌ Belirtilen metin kanalı bulunamadı.', ephemeral: true });
-
-                try {
-                    await targetCh.send(buildTempVoiceCreatorPanel());
-                    return interaction.update({
-                        content: `✅ Özel Ses Odası Oluşturma Paneli başarıyla <#${targetCh.id}> kanalına gönderildi!`,
-                        components: [],
-                        embeds: []
-                    });
-                } catch (e) {
-                    return interaction.update({
-                        content: `❌ Panel gönderilirken hata oluştu: ${e.message}`,
-                        components: [],
-                        embeds: []
-                    });
-                }
-            }
-
             if (interaction.customId === 'select_br_target_channel') {
                 if (!isAdmin && !isYetkili) {
                     return interaction.reply({ content: '❌ Bu işlemi sadece **Yöneticiler ve Yetkililer** gerçekleştirebilir.', ephemeral: true });
@@ -5056,8 +5021,17 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId.startsWith('set_ayar_ch_')) {
                 if (!isAdmin) return;
                 const key = interaction.customId.replace('set_ayar_ch_', '');
-                db[guildId][key] = interaction.values[0];
+                const chId = interaction.values[0];
+                db[guildId][key] = chId;
                 saveDB(db);
+
+                if (key === 'odaKanal') {
+                    const targetCh = interaction.guild.channels.cache.get(chId) || await interaction.guild.channels.fetch(chId).catch(() => null);
+                    if (targetCh && targetCh.isTextBased()) {
+                        await targetCh.send(buildTempVoiceCreatorPanel()).catch(e => console.error("Panel atılamadı:", e));
+                    }
+                }
+
                 return interaction.update(buildAyarDashboard(db[guildId]));
             }
 
