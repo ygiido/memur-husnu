@@ -421,12 +421,13 @@ async function handleShutdown(signal) {
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
 
-// Geçici Hafıza Haritaları (Spam, Davet, Ses Süresi ve Cooldown Takibi)
+// Geçici Hafıza Haritaları (Spam, Davet, Ses Süresi, Cooldown ve Nuke Takibi)
 const spamMap = new Map();
 const invitesCache = new Map();
 const voiceTimerMap = new Map();
 const vcCooldownMap = new Map();
 const renameCooldownMap = new Map();
+const nukeTracker = new Map();
 
 function ensureGuildDB(db, guildId) {
     if (!db[guildId]) db[guildId] = {};
@@ -438,6 +439,8 @@ function ensureGuildDB(db, guildId) {
     if (!db[guildId].customKufurler) db[guildId].customKufurler = [];
     if (!Array.isArray(db[guildId].botWhitelist)) db[guildId].botWhitelist = [];
     if (db[guildId].antiBot === undefined) db[guildId].antiBot = true;
+    if (db[guildId].antiNuke === undefined) db[guildId].antiNuke = true;
+    if (db[guildId].antiRaid === undefined) db[guildId].antiRaid = true;
     if (!db[guildId].levelRoles) db[guildId].levelRoles = {};
     if (!Array.isArray(db[guildId].marketRoles)) db[guildId].marketRoles = [];
     if (!Array.isArray(db[guildId].tempUserRoles)) db[guildId].tempUserRoles = [];
@@ -1445,6 +1448,99 @@ async function sendLog(guild, logCategory, options, files = []) {
     }
 }
 
+// Anti-Nuke (Sunucu Patlatma / Seri Kanal-Rol Silme Koruması: 10 saniyede 5+ silme)
+async function checkAntiNuke(guild, executor, actionType = 'Kanal') {
+    if (!guild || !executor) return false;
+    const db = getDB();
+    const guildId = guild.id;
+    ensureGuildDB(db, guildId);
+
+    // Anti-Nuke kapalıysa işlem yapma
+    if (db[guildId].antiNuke === false) return false;
+
+    // Sunucu sahibi veya botun kendisi ise kısıtlama uygulanmaz
+    if (executor.id === guild.ownerId || executor.id === client.user.id) return false;
+
+    const now = Date.now();
+    const key = `${guildId}:${executor.id}`;
+    let timestamps = nukeTracker.get(key) || [];
+
+    // Son 10 saniye dışındaki eski kayıtları temizle
+    timestamps = timestamps.filter(t => now - t <= 10000);
+    timestamps.push(now);
+    nukeTracker.set(key, timestamps);
+
+    // 10 saniyede 5 veya daha fazla silme tespit edildiyse DEVREYE GİR!
+    if (timestamps.length >= 5) {
+        nukeTracker.delete(key); // Sayacı sıfırla
+
+        let member = null;
+        try {
+            member = await guild.members.fetch(executor.id);
+        } catch (e) { }
+
+        let rolesTaken = false;
+        let timeoutApplied = false;
+
+        if (member && member.manageable) {
+            try {
+                // @everyone hariç yetkilinin tüm rollerini al
+                const rolesToRemove = member.roles.cache.filter(r => r.id !== guild.id && r.editable);
+                if (rolesToRemove.size > 0) {
+                    await member.roles.remove(rolesToRemove, '🚨 ANTİ-NUKE: 10 saniyede 5+ kanal/rol silme girişimi');
+                    rolesTaken = true;
+                }
+            } catch (e) { }
+
+            try {
+                // 28 gün maksimum zaman aşımı (Timeout)
+                await member.timeout(28 * 24 * 60 * 60 * 1000, '🚨 ANTİ-NUKE: Seri kanal/rol silme tespit edildi');
+                timeoutApplied = true;
+            } catch (e) { }
+        }
+
+        // Sunucu Sahibine Acil Durum DM Bildirimi Gönder
+        try {
+            const owner = await guild.members.fetch(guild.ownerId);
+            if (owner) {
+                await owner.send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('🚨 ACİL DURUM: SUNUCUNUZDA SALDIRI (NUKE) ENGELLENDİ!')
+                            .setDescription(
+                                `**Sunucu:** \`${guild.name}\`\n` +
+                                `**Saldırgan Yetkili:** <@${executor.id}> (\`${executor.tag}\` - \`${executor.id}\`)\n` +
+                                `**Eylem:** 10 saniye içinde **${timestamps.length} adet** ${actionType} silme işlemi tespit edildi!\n\n` +
+                                `**Uygulanan Önlemler:**\n` +
+                                `• ${rolesTaken ? '✅ Yetkilinin tüm rolleri derhal alındı.' : '⚠️ Yetkili rolleri hiyerarşi nedeniyle alınamadı.'}\n` +
+                                `• ${timeoutApplied ? '✅ Yetkiliye 28 gün (maksimum) zaman aşımı uygulandı.' : '⚠️ Zaman aşımı uygulanamadı.'}\n\n` +
+                                `⚠️ *Lütfen sunucu denetim kaydını (Audit Log) kontrol ediniz ve yetkilerinizi gözden geçiriniz.*`
+                            )
+                            .setColor(0xed4245)
+                            .setTimestamp()
+                    ]
+                });
+            }
+        } catch (e) { }
+
+        // Güvenlik Log Kanalına Rapor Gönder
+        sendLog(guild, 'logGuvenlik', {
+            title: '🚨🚨🚨 ANTİ-NUKE DEVREYE GİRDİ (SALDIRGAN ENGELLENDİ)',
+            desc: `**Saldırgan Yetkili:** <@${executor.id}> (\`${executor.tag}\`)\n` +
+                `**Tespit:** 10 saniye içinde **${timestamps.length}** adet ${actionType} silme işlemi gerçekleştirdi!\n` +
+                `**Uygulanan Acil Durum Tedbirleri:**\n` +
+                `• ${rolesTaken ? 'Tüm yetki ve rolleri elinden alındı.' : 'Rolleri alınamadı (Yetki seviyesi yetersiz).'}\n` +
+                `• ${timeoutApplied ? '28 Gün zaman aşımı (Timeout) cezası verildi.' : 'Timeout uygulanamadı.'}\n` +
+                `• Sunucu Sahibine anlık özel mesaj (DM) ile acil durum raporu iletildi.`,
+            color: 0xed4245
+        });
+
+        return true;
+    }
+
+    return false;
+}
+
 // Otomatik Hapis (Jail) ve Zaman Aşımı Uygulama Fonksiyonu
 async function applyJail(member, guild, reason) {
     if (!member || !guild) return;
@@ -1677,10 +1773,10 @@ function buildAyarDashboard(guildDb) {
         .addFields(
             { name: '👥 Rol Yapılandırması', value: `Yetkili: ${getRole(guildDb.yetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
             { name: '🎙️ Ses ve Yayın', value: `Oda Paneli Kanalı: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
-            { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
+            { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nAnti-Nuke: **${guildDb.antiNuke !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(10sn / 5 silme)*\nAnti-Raid: **${guildDb.antiRaid !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(≤ 3 günlük hesap)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
         );
 
-    // Hızlı Aç/Kapat Butonları (Tek Tıkla Kolay Yönetim)
+    // Hızlı Aç/Kapat Butonları - 1. Satır
     const toggleRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('btn_quick_toggle_link')
@@ -1702,6 +1798,18 @@ function buildAyarDashboard(guildDb) {
             .setCustomId('btn_quick_toggle_oto')
             .setLabel(guildDb.otoCevap !== false ? 'Oto-Cevap: Açık' : 'Oto-Cevap: Kapalı')
             .setStyle(guildDb.otoCevap !== false ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    );
+
+    // Hızlı Aç/Kapat Butonları - 2. Satır (Anti-Nuke & Anti-Raid)
+    const toggleRow2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('btn_quick_toggle_antinuke')
+            .setLabel(guildDb.antiNuke !== false ? 'Anti-Nuke: Açık' : 'Anti-Nuke: Kapalı')
+            .setStyle(guildDb.antiNuke !== false ? ButtonStyle.Success : ButtonStyle.Danger),
+        new ButtonBuilder()
+            .setCustomId('btn_quick_toggle_antiraid')
+            .setLabel(guildDb.antiRaid !== false ? 'Anti-Raid (3 Gün): Açık' : 'Anti-Raid: Kapalı')
+            .setStyle(guildDb.antiRaid !== false ? ButtonStyle.Success : ButtonStyle.Danger)
     );
 
     const menuRow = new ActionRowBuilder().addComponents(
@@ -1728,7 +1836,7 @@ function buildAyarDashboard(guildDb) {
             ])
     );
 
-    return { content: '', embeds: [embed], components: [...buildDashboardButtons('ayar'), toggleRow, menuRow] };
+    return { content: '', embeds: [embed], components: [...buildDashboardButtons('ayar'), toggleRow, toggleRow2, menuRow] };
 }
 
 function buildLogDashboard(guildDb) {
@@ -5871,6 +5979,18 @@ client.on('interactionCreate', async interaction => {
                 saveDB(db);
                 return interaction.update(buildAyarDashboard(db[guildId])).catch(() => { });
             }
+            if (customId === 'btn_quick_toggle_antinuke') {
+                if (!isAdmin) return interaction.reply({ content: 'Bu ayarı sadece Sunucu Yöneticileri değiştirebilir.', ephemeral: true }).catch(() => { });
+                db[guildId].antiNuke = db[guildId].antiNuke === false ? true : false;
+                saveDB(db);
+                return interaction.update(buildAyarDashboard(db[guildId])).catch(() => { });
+            }
+            if (customId === 'btn_quick_toggle_antiraid') {
+                if (!isAdmin) return interaction.reply({ content: 'Bu ayarı sadece Sunucu Yöneticileri değiştirebilir.', ephemeral: true }).catch(() => { });
+                db[guildId].antiRaid = db[guildId].antiRaid === false ? true : false;
+                saveDB(db);
+                return interaction.update(buildAyarDashboard(db[guildId])).catch(() => { });
+            }
 
             // --- GEÇİCİ ODA (TEMP VC) BUTONLARI ---
             if (customId.startsWith('vc_')) {
@@ -7373,10 +7493,69 @@ client.on('guildMemberAdd', async member => {
         }
     }
 
+    // Anti-Raid Koruması (Hesap Yaşı 3 Gün veya Daha Düşükse Kısıtla)
+    const accountAgeMs = Date.now() - member.user.createdTimestamp;
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    const isSuspiciousNewAccount = accountAgeMs <= threeDaysMs;
+
+    if (isSuspiciousNewAccount && db[guildId].antiRaid !== false) {
+        const ageHours = Math.floor(accountAgeMs / (1000 * 60 * 60));
+        const ageDays = Math.floor(ageHours / 24);
+        const ageText = ageDays > 0 ? `${ageDays} gün ${ageHours % 24} saat` : `${ageHours} saat`;
+
+        let timeoutApplied = false;
+        let jailRoleApplied = false;
+
+        if (member.manageable) {
+            try {
+                // 7 gün zaman aşımı (Timeout)
+                await member.timeout(7 * 24 * 60 * 60 * 1000, 'Anti-Raid: 3 günden yeni hesap koruması');
+                timeoutApplied = true;
+            } catch (e) { }
+
+            if (db[guildId].jailRol) {
+                try {
+                    await member.roles.add(db[guildId].jailRol);
+                    jailRoleApplied = true;
+                } catch (e) { }
+            }
+        }
+
+        try {
+            await member.send({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle(`🛡️ ${member.guild.name} - Anti-Raid Koruması`)
+                        .setDescription(
+                            `Merhaba **${member.user.username}**,\n\n` +
+                            `Sunucumuzda aktif olan **Anti-Raid Güvenlik Kalkanı** gereği, açılış tarihi 3 günden yeni olan hesaplar güvenlik amacıyla geçici olarak kısıtlanmaktadır.\n\n` +
+                            `• **Hesap Yaşınız:** \`${ageText}\`\n` +
+                            `• **Durum:** Sunucuda işlem yapabilmeniz için yetkililerin incelemesi gerekmektedir.`
+                        )
+                        .setColor(0xf1c40f)
+                        .setTimestamp()
+                ]
+            }).catch(() => { });
+        } catch (e) { }
+
+        sendLog(member.guild, 'logGuvenlik', {
+            title: '🛡️ ANTİ-RAİD: ŞÜPHELİ YENİ HESAP KISITLANDI',
+            desc: `**Katılan Üye:** <@${member.id}> (\`${member.user.tag}\`)\n` +
+                `**Hesap Yaşı:** ⏱️ **${ageText}** (3 günden yeni!)\n` +
+                `**Hesap Açılış:** <t:${Math.floor(member.user.createdTimestamp / 1000)}:F> (<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>)\n` +
+                `**Uygulanan Önlemler:**\n` +
+                `• ${timeoutApplied ? '7 Gün zaman aşımı (Timeout) uygulandı.' : 'Timeout uygulanamadı.'}\n` +
+                `• ${jailRoleApplied ? 'Cezalı/Karantina rolü verildi.' : 'Karantina rolü atanmamış.'}\n` +
+                `• Otomatik giriş rolü (Oto-Rol) engellendi.`,
+            color: 0xf1c40f,
+            thumbnail: member.user.displayAvatarURL()
+        });
+    }
+
     // Yeni Katılan Üyeye Otomatik Rol (Oto-Rol) Verme
     const isJailed = userData.jailExpire && Date.now() < userData.jailExpire;
     let otoRolVerildi = false;
-    if (db[guildId].otoRol && !isJailed) {
+    if (db[guildId].otoRol && !isJailed && (!isSuspiciousNewAccount || db[guildId].antiRaid === false)) {
         const otoRoleId = db[guildId].otoRol;
         const roleObj = member.guild.roles.cache.get(otoRoleId);
         if (roleObj) {
@@ -7699,6 +7878,9 @@ client.on('channelDelete', async channel => {
     }
 
     const executor = await getAuditExecutor(channel.guild, AuditLogEvent.ChannelDelete, channel.id);
+    if (executor) {
+        await checkAntiNuke(channel.guild, executor, 'Kanal');
+    }
     const parentName = channel.parent ? channel.parent.name : 'Kategorisiz';
     const typeName = getChannelTypeName(channel.type);
 
@@ -7900,6 +8082,9 @@ client.on('roleCreate', async role => {
 
 client.on('roleDelete', async role => {
     const executor = await getAuditExecutor(role.guild, AuditLogEvent.RoleDelete, role.id);
+    if (executor) {
+        await checkAntiNuke(role.guild, executor, 'Rol');
+    }
     sendLog(role.guild, 'logSunucu', { title: 'Rol Silindi', desc: `**Silinen Rol:** \`${role.name}\`\n**Silen Yetkili:** ${executor ? `<@${executor.id}>` : 'Bilinmiyor'}`, color: 0xed4245 });
 });
 
