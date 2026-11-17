@@ -1299,14 +1299,17 @@ setInterval(async () => {
 function kufurTespitEt(metin, customList = []) {
     if (!metin) return false;
 
-    // Discord etiketlerini (kullanıcı, rol, kanal ve emoji ID'leri) küfür kontrolünden önce temizle
-    // (Böylece ID numaralarının harf dönüşümünden hatalı küfür uyarısı çıkması engellenir)
-    const cleanMetin = metin.replace(/<@!?\d+>|<@&\d+>|<#\d+>|<a?:\w+:\d+>/g, ' ');
+    // 0. Görünmez Unicode, Zero-Width boşluklar ve Zalgo aksanlarını temizle (a\u200Bm\u200Bk bypass engeli)
+    const cleanMetin = metin
+        .replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u00AD\u034F\u115F\u1160\u17B4\u17B5\u3164\uFFA0]/g, '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/<@!?\d+>|<@&\d+>|<#\d+>|<a?:\w+:\d+>/g, ' ');
 
     let text = cleanMetin.toLocaleLowerCase('tr-TR');
 
     const charMap = {
-        '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g',
+        '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '6': 'b', '7': 't', '8': 'b', '9': 'g',
         '@': 'a', '$': 's', '!': 'i', '¡': 'i', '|': 'i', '+': 't', '€': 'e', '£': 'e',
         'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i', 'û': 'u',
         'q': 'k', 'w': 'v', 'x': 'ks'
@@ -1328,6 +1331,10 @@ function kufurTespitEt(metin, customList = []) {
     const bypassRegex = /(?:^|[\s\W_])([a4@][\s\W_]*[m][\s\W_]*[kqv]|[a4@][\s\W_]*[kq]|[o0][\s\W_]*[cç]|[p][\s\W_]*[i1!][\s\W_]*[cç]|[s5$][\s\W_]*[i1!][\s\W_]*[k]|[s5$][\s\W_]*[g]|[m][\s\W_]*[kq])(?:[\s\W_]|$)/i;
     if (bypassRegex.test(normText)) return true;
 
+    // Özel O.Ç kısaltması ve O Çocuğu kombinasyonu
+    const oCocuguRegex = /(?:^|[\s\W_])o[\s\._\-\*]*[cç]o[cç]u(?:[gğk][uü]?)?(?:[\s\W_]|$)/i;
+    if (oCocuguRegex.test(normText)) return true;
+
     // Sunucuya özel yasaklı kelimeler kontrolü
     if (Array.isArray(customList) && customList.length > 0) {
         for (let custom of customList) {
@@ -1339,19 +1346,21 @@ function kufurTespitEt(metin, customList = []) {
     // Doğrudan kelime bazlı küfürler (Masum kelimeler: top, amin, sulan, anan buradan çıkartıldı)
     const kelimeBazliKufurler = [
         'amk', 'amc', 'amq', 'aq', 'oc', 'oç', 'pic', 'piç', 'sik', 'sg', 'mk', 'mq',
-        'got', 'göt', 'amcik', 'amck',
+        'got', 'göt', 'amcik', 'amck', 'amcuk',
         'siki', 'sikim', 'sikin', 'sikis', 'siker', 'sikerim', 'sikeyim', 'sikik', 'siktir', 'sktr', 'siktin', 'sokuk', 'sokarim', 'sokam',
+        'siktimin', 'siktigimin',
         'yarak', 'yarrak', 'yarag', 'yarrag', 'yarram', 'yaraam',
         'orspu', 'orospu', 'oruspu', 'orosbu', 'orusbu',
         'pezevenk', 'pezeveng', 'pzvnk', 'gavat', 'kaltak', 'kahpe', 'kahbe', 'kancik', 'kevase', 'kaltag',
-        'ibne', 'ipne', 'puşt', 'pust', 'yavsak', 'yavşak', 'gotten', 'gotveren', 'götveren',
+        'ibne', 'ipne', 'puşt', 'pust', 'yavsak', 'yavşak', 'gotten', 'gotveren', 'götveren', 'gotlek', 'götlek',
         'dalyarak', 'dalyarrak', 'malafat', 'taşak', 'tasak', 'tassak', 'daşak', 'dasak', 'dassak',
-        'angut', 'lavuk', 'zibidi', 'haysiyetsiz', 'serefsiz', 'şerefsiz', 'namussuz', 'itoglu', 'kopekoglu'
+        'angut', 'lavuk', 'zibidi', 'haysiyetsiz', 'serefsiz', 'şerefsiz', 'namussuz', 'itoglu', 'kopekoglu',
+        'amguard'
     ];
 
     for (let word of wordsArray) {
         if (kelimeBazliKufurler.includes(word)) return true;
-        if (/^(siktir|sikis|siker|sikey|sikim|orospu|oruspu|pezevenk|yavsak|amcik|yarrak|yarak|gotveren|kahpe|kaltak)/.test(word)) {
+        if (/^(siktir|sikis|siker|sikey|sikim|orospu|oruspu|pezevenk|yavsak|amcik|yarrak|yarak|gotveren|kahpe|kaltak|siktimin|siktigimin)/.test(word)) {
             return true;
         }
     }
@@ -1364,7 +1373,9 @@ function kufurTespitEt(metin, customList = []) {
         /s[uü]l[aâ]len[ıi]\s*(sike|sikt|sok|sik)/i,
         /ecdad[ıi]n[ıi]\s*(sike|sikt|sok|sik)/i,
         /avrad[ıi]n[ıi]\s*(sike|sikt|sok|sik)/i,
-        /am[ıi]na\s*(koy|sok|cak|yag|soki|kor)/i,
+        /am[ıi]na\s*(koy|sok|cak|yag|soki|kor|kod|koyd)/i,
+        /am\s*(feryad|guard|hosaf)/i,
+        /d[oö]l\s*israf/i,
         /am[ıi]n[ıi]\s*(sik|sok|des)/i,
         /g[oö]t[uü]n[eü]\s*(koy|sok|gir)/i
     ];
@@ -1376,7 +1387,8 @@ function kufurTespitEt(metin, customList = []) {
     const agirKombinasyonlar = [
         'orospu', 'oruspu', 'orosbu', 'pezevenk', 'pezeveng', 'siktir', 'sikerim', 'sikeyim', 'sikis',
         'amcik', 'aminakoy', 'aminasok', 'aminisik', 'ananisik', 'ananisikeyim', 'bacinisik', 'sulalenisik',
-        'yarrak', 'yarram', 'dalyarak', 'gotveren', 'gotten', 'yavsak', 'kahpe', 'kaltak', 'gavat', 'orcocu', 'orospucocu'
+        'yarrak', 'yarram', 'dalyarak', 'gotveren', 'gotten', 'yavsak', 'kahpe', 'kaltak', 'gavat', 'orcocu', 'orospucocu',
+        'amkoyim', 'amkoyayim', 'dolisrafi', 'gotlek', 'amguard'
     ];
 
     for (let agir of agirKombinasyonlar) {
