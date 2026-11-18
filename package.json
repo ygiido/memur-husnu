@@ -1,7 +1,7 @@
 {
   "name": "memur-husnu",
-  "version": "2.1.11",
-  "description": "Memur Hüsnü v2.1.11 - Gelişmiş moderasyon (Alt/Üst Yönetim, /uyar, /sustur, /kick, /ban), Anti-Nuke, Anti-Raid, canlı radyo ve ekonomi botu",
+  "version": "2.1.12",
+  "description": "Memur Hüsnü v2.1.12 - Gelişmiş moderasyon, panel bileşen sınırı düzeltmesi ve güvenlik kalkanları",
   "main": "index.js",
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js"

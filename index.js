@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.11',
+        versiyon: 'v2.1.12',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -1779,39 +1779,27 @@ function buildAyarDashboard(guildDb) {
             { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nAnti-Nuke: **${guildDb.antiNuke !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(10sn / 5 silme)*\nAnti-Raid: **${guildDb.antiRaid !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(≤ 3 günlük hesap)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
         );
 
-    // Hızlı Aç/Kapat Butonları - 1. Satır
+    // Hızlı Aç/Kapat Butonları (5 Temel Güvenlik Kalkanı)
     const toggleRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('btn_quick_toggle_link')
-            .setLabel(guildDb.linkEngel ? 'Link: Açık' : 'Link: Kapalı')
-            .setStyle(guildDb.linkEngel ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('btn_quick_toggle_kufur')
             .setLabel(guildDb.kufurEngel ? 'Küfür: Açık' : 'Küfür: Kapalı')
             .setStyle(guildDb.kufurEngel ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
-            .setCustomId('btn_quick_toggle_caps')
-            .setLabel(guildDb.capsEngel !== false ? 'Caps: Açık' : 'Caps: Kapalı')
-            .setStyle(guildDb.capsEngel !== false ? ButtonStyle.Success : ButtonStyle.Secondary),
+            .setCustomId('btn_quick_toggle_link')
+            .setLabel(guildDb.linkEngel ? 'Link: Açık' : 'Link: Kapalı')
+            .setStyle(guildDb.linkEngel ? ButtonStyle.Success : ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('btn_quick_toggle_antibot')
             .setLabel(guildDb.antiBot !== false ? 'Anti-Bot: Açık' : 'Anti-Bot: Kapalı')
             .setStyle(guildDb.antiBot !== false ? ButtonStyle.Success : ButtonStyle.Secondary),
-        new ButtonBuilder()
-            .setCustomId('btn_quick_toggle_oto')
-            .setLabel(guildDb.otoCevap !== false ? 'Oto-Cevap: Açık' : 'Oto-Cevap: Kapalı')
-            .setStyle(guildDb.otoCevap !== false ? ButtonStyle.Primary : ButtonStyle.Secondary)
-    );
-
-    // Hızlı Aç/Kapat Butonları - 2. Satır (Anti-Nuke & Anti-Raid)
-    const toggleRow2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('btn_quick_toggle_antinuke')
             .setLabel(guildDb.antiNuke !== false ? 'Anti-Nuke: Açık' : 'Anti-Nuke: Kapalı')
             .setStyle(guildDb.antiNuke !== false ? ButtonStyle.Success : ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId('btn_quick_toggle_antiraid')
-            .setLabel(guildDb.antiRaid !== false ? 'Anti-Raid (3 Gün): Açık' : 'Anti-Raid: Kapalı')
+            .setLabel(guildDb.antiRaid !== false ? 'Anti-Raid: Açık' : 'Anti-Raid: Kapalı')
             .setStyle(guildDb.antiRaid !== false ? ButtonStyle.Success : ButtonStyle.Danger)
     );
 
@@ -1822,6 +1810,8 @@ function buildAyarDashboard(guildDb) {
             .addOptions([
                 { label: 'Alt Yönetim (Moderatör) Rolü Seç', description: 'Uyar, sustur ve sil komutlarını kullanabilen rol.', value: 'altYetkiliRol' },
                 { label: 'Üst Yönetim (Admin) Rolü Seç', description: 'Hapis, af, kick ve ban komutlarını kullanabilen rol.', value: 'ustYetkiliRol' },
+                { label: 'Caps Lock Korumasını Aç / Kapat', description: 'Büyük harf spam engellemesini açar veya kapatır.', value: 'toggle_caps' },
+                { label: 'Oto-Cevap Sistemini Aç / Kapat', description: 'Selamlaşma ve otomatik bot cevaplarını açar veya kapatır.', value: 'toggle_oto' },
                 { label: 'Muaf Rolü Seç', description: 'Küfür, link ve spam korumalarından muaf tutulan rol.', value: 'muafRol' },
                 { label: 'Cezalı (Jail) Rolü Seç', description: 'Hapis cezası alan üyelere verilen kısıtlama rolü.', value: 'jailRol' },
                 { label: 'Sicilli Rolü Seç', description: 'Sicili bozulan üyelere verilecek uyarı rolü.', value: 'sicilRol' },
@@ -1840,7 +1830,7 @@ function buildAyarDashboard(guildDb) {
             ])
     );
 
-    return { content: '', embeds: [embed], components: [...buildDashboardButtons('ayar'), toggleRow, toggleRow2, menuRow] };
+    return { content: '', embeds: [embed], components: [...buildDashboardButtons('ayar'), toggleRow, menuRow] };
 }
 
 function buildLogDashboard(guildDb) {
@@ -4854,6 +4844,11 @@ client.on('interactionCreate', async interaction => {
                 }
                 if (secim === 'toggle_oto') {
                     db[guildId].otoCevap = db[guildId].otoCevap === false ? true : false;
+                    saveDB(db);
+                    return interaction.update(buildAyarDashboard(db[guildId]));
+                }
+                if (secim === 'toggle_caps') {
+                    db[guildId].capsEngel = db[guildId].capsEngel === false ? true : false;
                     saveDB(db);
                     return interaction.update(buildAyarDashboard(db[guildId]));
                 }
