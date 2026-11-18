@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.10',
+        versiyon: 'v2.1.11',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -441,6 +441,8 @@ function ensureGuildDB(db, guildId) {
     if (db[guildId].antiBot === undefined) db[guildId].antiBot = true;
     if (db[guildId].antiNuke === undefined) db[guildId].antiNuke = true;
     if (db[guildId].antiRaid === undefined) db[guildId].antiRaid = true;
+    if (db[guildId].altYetkiliRol === undefined) db[guildId].altYetkiliRol = null;
+    if (db[guildId].ustYetkiliRol === undefined) db[guildId].ustYetkiliRol = null;
     if (!db[guildId].levelRoles) db[guildId].levelRoles = {};
     if (!Array.isArray(db[guildId].marketRoles)) db[guildId].marketRoles = [];
     if (!Array.isArray(db[guildId].tempUserRoles)) db[guildId].tempUserRoles = [];
@@ -1763,7 +1765,8 @@ function buildAyarDashboard(guildDb) {
         .setDescription(
             `Aşağıdaki butonlardan koruma filtrelerini doğrudan **açıp kapatabilir**, açılır menüden ise rol, kanal ve yayıncı yapılandırmalarını hızlıca yapabilirsiniz.\n\n` +
             `**Rol Görevleri:**\n` +
-            `- **Yetkili Rolü:** \`/hapis\`, \`/af\`, \`/sil\` komutlarını ve destek taleplerini yöneten roldür.\n` +
+            `- **Alt Yönetim (Moderatör):** \`/uyar\`, \`/sustur\`, \`/sil\` komutlarını kullanabilen saha ekibidir.\n` +
+            `- **Üst Yönetim (Admin):** \`/hapis\`, \`/af\`, \`/kick\`, \`/ban\`, \`/unban\` ve tüm moderasyon yetkilerine sahip üst ekiptir.\n` +
             `- **Muaf Rolü:** Küfür, link, spam ve caps lock denetiminden muaf tutulur.\n` +
             `- **Cezalı (Jail) Rolü:** Ceza alan üyelere otomatik verilen kısıtlama rolüdür.\n` +
             `- **Sicilli Rolü:** Sürekli kural ihlali yapanlara verilen kalıcı uyarı rolüdür.\n` +
@@ -1771,7 +1774,7 @@ function buildAyarDashboard(guildDb) {
         )
         .setColor(0x2b2d31)
         .addFields(
-            { name: '👥 Rol Yapılandırması', value: `Yetkili: ${getRole(guildDb.yetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
+            { name: '👥 Rol Yapılandırması', value: `Alt Yönetim (Mod): ${getRole(guildDb.altYetkiliRol || guildDb.yetkiliRol)}\nÜst Yönetim (Admin): ${getRole(guildDb.ustYetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
             { name: '🎙️ Ses ve Yayın', value: `Oda Paneli Kanalı: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
             { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nAnti-Nuke: **${guildDb.antiNuke !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(10sn / 5 silme)*\nAnti-Raid: **${guildDb.antiRaid !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(≤ 3 günlük hesap)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
         );
@@ -1817,7 +1820,8 @@ function buildAyarDashboard(guildDb) {
             .setCustomId('panel_ayar_sec')
             .setPlaceholder('Yapılandırılacak ayarı listeden seçin...')
             .addOptions([
-                { label: 'Yetkili (Moderatör) Rolü Seç', description: 'Hapis, af, sil ve bilet yönetim yetkisine sahip rol.', value: 'yetkiliRol' },
+                { label: 'Alt Yönetim (Moderatör) Rolü Seç', description: 'Uyar, sustur ve sil komutlarını kullanabilen rol.', value: 'altYetkiliRol' },
+                { label: 'Üst Yönetim (Admin) Rolü Seç', description: 'Hapis, af, kick ve ban komutlarını kullanabilen rol.', value: 'ustYetkiliRol' },
                 { label: 'Muaf Rolü Seç', description: 'Küfür, link ve spam korumalarından muaf tutulan rol.', value: 'muafRol' },
                 { label: 'Cezalı (Jail) Rolü Seç', description: 'Hapis cezası alan üyelere verilen kısıtlama rolü.', value: 'jailRol' },
                 { label: 'Sicilli Rolü Seç', description: 'Sicili bozulan üyelere verilecek uyarı rolü.', value: 'sicilRol' },
@@ -1935,7 +1939,7 @@ function buildInfoDashboard(guild, guildDb) {
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .addFields(
             { name: 'Sunucu İstatistikleri', value: `Üye Sayısı: **${guild.memberCount}** | Açık Ticket: **${activeTickets}** | Açık Geçici Oda: **${activeRooms}**`, inline: false },
-            { name: 'Rol Ayarları', value: `Yetkili: ${getRole(guildDb.yetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
+            { name: 'Rol Ayarları', value: `Alt Yönetim: ${getRole(guildDb.altYetkiliRol || guildDb.yetkiliRol)}\nÜst Yönetim: ${getRole(guildDb.ustYetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
             { name: 'Kanal ve Yayın Ayarları', value: `Oda Oluşturucu: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
             { name: 'Log Kanalları', value: `**Ceza:** ${getCh(guildDb.logCeza)}\n**Mesaj:** ${getCh(guildDb.logMesaj)}\n**Ses:** ${getCh(guildDb.logSes)}\n**Üye:** ${getCh(guildDb.logUye)}\n**Sunucu:** ${getCh(guildDb.logSunucu)}\n**Güvenlik:** ${getCh(guildDb.logGuvenlik)}`, inline: false },
             { name: 'Koruma Filtreleri', value: `Link Engeli: **${guildDb.linkEngel ? 'Aktif' : 'Kapalı'}** | Küfür Engeli: **${guildDb.kufurEngel ? 'Aktif' : 'Kapalı'}** | Oto-Cevap: **${guildDb.otoCevap !== false ? 'Aktif' : 'Kapalı'}**`, inline: false }
@@ -3343,6 +3347,62 @@ client.once('ready', async () => {
             ]
         },
         {
+            name: 'uyar',
+            description: 'Kullanıcıya resmi moderasyon uyarısı verir (3 uyarıda 30dk ceza uygulanır).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Uyarılacak kullanıcıyı seçin', required: true },
+                { name: 'sebep', type: 3, description: 'Uyarı sebebini yazın (Logda görünür)', required: true }
+            ]
+        },
+        {
+            name: 'sustur',
+            description: 'Kullanıcıyı rol vermeden sadece Discord zaman aşımıyla (timeout) susturur.',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Susturulacak kullanıcıyı seçin', required: true },
+                { name: 'sure', type: 4, description: 'Susturma süresi miktarını girin (Sayı)', required: true },
+                {
+                    name: 'birim', type: 3, description: 'Sürenin zaman birimini seçin', required: true, choices: [
+                        { name: 'Saniye', value: 'saniye' },
+                        { name: 'Dakika', value: 'dakika' },
+                        { name: 'Saat', value: 'saat' },
+                        { name: 'Gün', value: 'gun' }
+                    ]
+                },
+                { name: 'sebep', type: 3, description: 'Susturma sebebini yazın (Logda görünür)', required: true }
+            ]
+        },
+        {
+            name: 'kick',
+            description: 'Kullanıcıyı sunucudan atar (Üst Yönetim).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Sunucudan atılacak kullanıcıyı seçin', required: true },
+                { name: 'sebep', type: 3, description: 'Atılma sebebini yazın (Logda görünür)', required: true }
+            ]
+        },
+        {
+            name: 'ban',
+            description: 'Kullanıcıyı sunucudan kalıcı olarak yasaklar (Üst Yönetim).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Yasaklanacak kullanıcıyı seçin', required: true },
+                { name: 'sebep', type: 3, description: 'Yasaklama sebebini yazın (Logda görünür)', required: true },
+                {
+                    name: 'mesaj_sil', type: 4, description: 'Geçmiş mesajlarını silme süresi', required: false, choices: [
+                        { name: 'Mesajları Silme', value: 0 },
+                        { name: 'Son 1 Günlük Mesajları Sil', value: 86400 },
+                        { name: 'Son 7 Günlük Mesajları Sil', value: 604800 }
+                    ]
+                }
+            ]
+        },
+        {
+            name: 'unban',
+            description: 'Kullanıcının sunucu yasağını kaldırır (Üst Yönetim).',
+            options: [
+                { name: 'kullanici_id', type: 3, description: 'Yasağı kaldırılacak kullanıcının Discord ID\'si', required: true },
+                { name: 'sebep', type: 3, description: 'Yasağın kaldırılma sebebi (Logda görünür)', required: false }
+            ]
+        },
+        {
             name: 'hapis',
             description: 'Kullanıcıyı belirtilen süre ve sebeple cezalıya (hapis) atar.',
             options: [
@@ -3676,12 +3736,16 @@ client.on('interactionCreate', async interaction => {
         const guildId = interaction.guildId;
         ensureGuildDB(db, guildId);
 
-        // Güvenli Yetkili Rolü ve Yönetici Kontrolü
-        const isAdmin = Boolean(interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator));
-        const isYetkili = Boolean(
-            isAdmin ||
-            (db[guildId].yetkiliRol && interaction.member && interaction.member.roles && interaction.member.roles.cache && interaction.member.roles.cache.has(db[guildId].yetkiliRol))
+        // Güvenli Yetkili Rolü ve Yönetici Kontrolü (Hiyerarşik: Admin > Üst Yönetim > Alt Yönetim)
+        const isAdmin = Boolean(
+            (interaction.guild && interaction.user.id === interaction.guild.ownerId) ||
+            (interaction.memberPermissions && interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator))
         );
+        const hasRole = (roleId) => Boolean(roleId && interaction.member?.roles?.cache?.has(roleId));
+
+        const isUstYonetim = Boolean(isAdmin || hasRole(db[guildId].ustYetkiliRol));
+        const isAltYonetim = Boolean(isUstYonetim || hasRole(db[guildId].altYetkiliRol) || hasRole(db[guildId].yetkiliRol));
+        const isYetkili = isAltYonetim; // Geriye dönük uyumluluk
 
         // ------------------------------------------------------------------------
         // 1. SLASH KOMUTLARI (/panel, /yaz, /hapis, /af, /sil)
@@ -3724,8 +3788,253 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
-            if (['hapis', 'af', 'sil'].includes(commandName)) {
-                if (!isAdmin && !isYetkili) return safeReply(interaction, { content: 'Bu komutu kullanmak için Yetkili Rolüne veya Yönetici iznine sahip olmalısınız.', ephemeral: true });
+            // ------------------------------------------------------------------------
+            // ALT YÖNETİM (MODERATÖR) VE ÜSTÜ: /uyar, /sustur, /sil
+            // ------------------------------------------------------------------------
+            if (['uyar', 'sustur', 'sil'].includes(commandName)) {
+                if (!isAltYonetim) {
+                    return safeReply(interaction, { content: '❌ Bu komutu kullanmak için Yetkili (Alt Yönetim veya Üst Yönetim) rolüne sahip olmalısınız.', ephemeral: true });
+                }
+
+                if (commandName === 'uyar') {
+                    const user = interaction.options.getUser('kullanici');
+                    const sebep = interaction.options.getString('sebep');
+                    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+
+                    if (!member) return safeReply(interaction, { content: '❌ Kullanıcı sunucuda bulunamadı.', ephemeral: true });
+                    if (user.bot) return safeReply(interaction, { content: '❌ Botlara uyarı verilemez.', ephemeral: true });
+                    if (!member.manageable) return safeReply(interaction, { content: '❌ Bu kullanıcının rolü benden yüksek veya eşit olduğu için işlem yapılamıyor.', ephemeral: true });
+
+                    if (!db[guildId].users[user.id]) db[guildId].users[user.id] = { jailCount: 0, minorJailCount: 0, sicilli: false, kufurUyari: 0, spamWarn: 0, manualWarn: 0 };
+                    let userData = db[guildId].users[user.id];
+
+                    userData.manualWarn = (userData.manualWarn || 0) + 1;
+                    const warnCount = userData.manualWarn;
+
+                    if (warnCount < 3) {
+                        saveDB(db);
+
+                        member.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setTitle(`⚠️ ${interaction.guild.name} - Resmi Moderasyon Uyarısı`)
+                                    .setDescription(
+                                        `Sunucuda kuralları ihlal ettiğiniz gerekçesiyle resmi uyarı aldınız.\n\n` +
+                                        `**Yetkili:** <@${interaction.user.id}>\n` +
+                                        `**Sebep:** \`${sebep}\`\n` +
+                                        `**Toplam Uyarınız:** **${warnCount}/3**\n\n` +
+                                        `⚠️ *3. resmi uyarıya ulaştığınızda otomatik olarak 30 dakika Hapis, Cezalı Rolü, Sicil ve Zaman Aşımı (Timeout) uygulanacaktır.*`
+                                    )
+                                    .setColor(0xf1c40f)
+                                    .setTimestamp()
+                            ]
+                        }).catch(() => { });
+
+                        sendLog(interaction.guild, 'logCeza', {
+                            title: `Resmi Uyarı Verildi (${warnCount}/3)`,
+                            desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${user.id}>\n**Sebep:** ${sebep}\n**Mevcut Uyarı:** ${warnCount}/3`,
+                            color: 0xf1c40f,
+                            thumbnail: user.displayAvatarURL()
+                        });
+
+                        return safeReply(interaction, { content: `⚠️ <@${user.id}> kullanıcısına resmi uyarı verildi. (Toplam: **${warnCount}/3**)\n**Sebep:** ${sebep}`, ephemeral: true });
+                    } else {
+                        userData.manualWarn = 0; // Kota infaz edildi
+                        userData.jailCount = (userData.jailCount || 0) + 1;
+                        userData.sicilli = true;
+                        const sureMs = 30 * 60 * 1000;
+                        userData.jailExpire = Date.now() + sureMs;
+                        saveDB(db);
+
+                        if (member.manageable) {
+                            if (db[guildId].jailRol) await member.roles.add(db[guildId].jailRol).catch(() => { });
+                            if (db[guildId].sicilRol) await member.roles.add(db[guildId].sicilRol).catch(() => { });
+                            await member.timeout(sureMs, `3 Manuel Uyarı Sınırı Aşıldı: ${sebep}`).catch(() => { });
+                        }
+
+                        member.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setTitle(`🚨 ${interaction.guild.name} - 3. Uyarı Cezası İnfaz Edildi`)
+                                    .setDescription(
+                                        `Sunucuda **3 adet resmi uyarı sınırına** ulaştığınız için **30 dakika Hapis, Cezalı Rolü, Sicil Rolü ve Zaman Aşımı (Timeout)** uygulandı.\n\n` +
+                                        `**Son Uyarı Sebebi:** \`${sebep}\`\n` +
+                                        `**Yetkili:** <@${interaction.user.id}>\n` +
+                                        `**Sicil Durumu:** Sicilinize işlendi.`
+                                    )
+                                    .setColor(0xed4245)
+                                    .setTimestamp()
+                            ]
+                        }).catch(() => { });
+
+                        sendLog(interaction.guild, 'logCeza', {
+                            title: '🚨 3 Manuel Uyarı Limiti Aşıldı (Hapis & Timeout)',
+                            desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${user.id}>\n**Son Sebep:** ${sebep}\n**Uygulanan Ceza:** 30 Dakika Hapis Rolü + Sicil Rolü + Discord Timeout\n**Durum:** 3/3 uyarı dolduğu için ceza uygulandı.`,
+                            color: 0xed4245,
+                            thumbnail: user.displayAvatarURL()
+                        });
+
+                        return safeReply(interaction, { content: `🚨 <@${user.id}> kullanıcısı **3. resmi uyarısına** ulaştığı için **30 dakika Hapis cezası, Cezalı rolü, Sicil rolü ve Zaman Aşımı (Timeout)** uygulandı!\n**Son Sebep:** ${sebep}`, ephemeral: true });
+                    }
+                }
+
+                if (commandName === 'sustur') {
+                    const user = interaction.options.getUser('kullanici');
+                    const sayi = interaction.options.getInteger('sure');
+                    const kavram = interaction.options.getString('birim');
+                    const sebep = interaction.options.getString('sebep');
+                    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+
+                    if (!member) return safeReply(interaction, { content: '❌ Kullanıcı sunucuda bulunamadı.', ephemeral: true });
+                    if (!member.manageable) return safeReply(interaction, { content: '❌ Bu kullanıcının rolü benden yüksek veya eşit olduğu için işlem yapılamıyor.', ephemeral: true });
+
+                    let sureMs = 0;
+                    if (kavram === 'saniye') sureMs = sayi * 1000;
+                    if (kavram === 'dakika') sureMs = sayi * 60 * 1000;
+                    if (kavram === 'saat') sureMs = sayi * 60 * 60 * 1000;
+                    if (kavram === 'gun') sureMs = sayi * 24 * 60 * 60 * 1000;
+
+                    const timeoutMs = Math.min(sureMs, 28 * 24 * 60 * 60 * 1000);
+                    await member.timeout(timeoutMs, sebep).catch(() => { });
+
+                    member.send({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle(`🔇 ${interaction.guild.name} - Susturuldunuz`)
+                                .setDescription(
+                                    `Yetkili tarafından sunucuda geçici olarak susturuldunuz (Zaman Aşımı / Timeout).\n\n` +
+                                    `**Yetkili:** <@${interaction.user.id}>\n` +
+                                    `**Süre:** ${sayi} ${kavram}\n` +
+                                    `**Sebep:** \`${sebep}\``
+                                )
+                                .setColor(0xffa500)
+                                .setTimestamp()
+                        ]
+                    }).catch(() => { });
+
+                    sendLog(interaction.guild, 'logCeza', {
+                        title: 'Kullanıcı Susturuldu (Zaman Aşımı / Timeout)',
+                        desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${user.id}>\n**Süre:** ${sayi} ${kavram}\n**Sebep:** ${sebep}`,
+                        color: 0xffa500,
+                        thumbnail: user.displayAvatarURL()
+                    });
+
+                    return safeReply(interaction, { content: `🔇 <@${user.id}> adlı kullanıcıya **${sayi} ${kavram}** susturma (timeout) uygulandı.\n**Sebep:** ${sebep}`, ephemeral: true });
+                }
+
+                if (commandName === 'sil') {
+                    const miktar = interaction.options.getInteger('miktar');
+                    if (miktar < 1 || miktar > 100) return safeReply(interaction, { content: '❌ Lütfen 1 ile 100 arasında bir sayı girin.', ephemeral: true });
+                    const deleted = await interaction.channel.bulkDelete(miktar, true).catch(() => null);
+                    const count = deleted ? deleted.size : 0;
+                    sendLog(interaction.guild, 'logMesaj', { title: 'Toplu Mesaj Silme (/sil)', desc: `**Yetkili:** <@${interaction.user.id}>\n**Kanal:** <#${interaction.channel.id}>\n**Miktar:** ${count} adet mesaj silindi.`, color: 0xed4245 });
+                    return safeReply(interaction, { content: `🧹 **${count}** adet mesaj silindi. (14 günden eski mesajlar Discord kısıtı nedeniyle toplu silinemez).`, ephemeral: true });
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // ÜST YÖNETİM (ADMİN) KOMUTLARI: /hapis, /af, /kick, /ban, /unban
+            // ------------------------------------------------------------------------
+            if (['hapis', 'af', 'kick', 'ban', 'unban'].includes(commandName)) {
+                if (!isUstYonetim) {
+                    return safeReply(interaction, { content: '❌ Bu komut ağır yaptırım içerdiği için sadece **Üst Yönetim (Admin)** tarafından kullanılabilir.', ephemeral: true });
+                }
+
+                if (commandName === 'kick') {
+                    const user = interaction.options.getUser('kullanici');
+                    const sebep = interaction.options.getString('sebep');
+                    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+
+                    if (!member) return safeReply(interaction, { content: '❌ Kullanıcı sunucuda bulunamadı.', ephemeral: true });
+                    if (!member.kickable) return safeReply(interaction, { content: '❌ Bu kullanıcının rolü benden yüksek veya eşit olduğu için sunucudan atılamıyor.', ephemeral: true });
+
+                    await member.send({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle(`👢 ${interaction.guild.name} - Sunucudan Atıldınız (Kick)`)
+                                .setDescription(
+                                    `Sunucudan yetkili kararıyla atıldınız.\n\n` +
+                                    `**Yetkili:** <@${interaction.user.id}>\n` +
+                                    `**Sebep:** \`${sebep}\`\n\n` +
+                                    `*(Tekrar geçerli bir davet bağlantısı ile katılabilirsiniz.)*`
+                                )
+                                .setColor(0xed4245)
+                                .setTimestamp()
+                        ]
+                    }).catch(() => { });
+
+                    await member.kick(sebep);
+
+                    sendLog(interaction.guild, 'logCeza', {
+                        title: 'Kullanıcı Sunucudan Atıldı (Kick)',
+                        desc: `**Yetkili:** <@${interaction.user.id}>\n**Atılan:** <@${user.id}> (\`${user.tag}\`)\n**Sebep:** ${sebep}`,
+                        color: 0xed4245,
+                        thumbnail: user.displayAvatarURL()
+                    });
+
+                    return safeReply(interaction, { content: `👢 <@${user.id}> (\`${user.tag}\`) başarıyla sunucudan atıldı.\n**Sebep:** ${sebep}`, ephemeral: true });
+                }
+
+                if (commandName === 'ban') {
+                    const user = interaction.options.getUser('kullanici');
+                    const sebep = interaction.options.getString('sebep');
+                    const deleteSeconds = interaction.options.getInteger('mesaj_sil') || 0;
+                    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+
+                    if (member && !member.bannable) {
+                        return safeReply(interaction, { content: '❌ Bu kullanıcının rolü benden yüksek veya eşit olduğu için yasaklanamıyor.', ephemeral: true });
+                    }
+
+                    if (member) {
+                        await member.send({
+                            embeds: [
+                                new EmbedBuilder()
+                                    .setTitle(`🔨 ${interaction.guild.name} - Sunucudan Yasaklandınız (Ban)`)
+                                    .setDescription(
+                                        `Sunucudan kalıcı olarak yasaklandınız.\n\n` +
+                                        `**Yetkili:** <@${interaction.user.id}>\n` +
+                                        `**Sebep:** \`${sebep}\``
+                                    )
+                                    .setColor(0x992d22)
+                                    .setTimestamp()
+                            ]
+                        }).catch(() => { });
+                    }
+
+                    await interaction.guild.bans.create(user.id, { reason: sebep, deleteMessageSeconds: deleteSeconds });
+
+                    sendLog(interaction.guild, 'logCeza', {
+                        title: 'Kullanıcı Sunucudan Yasaklandı (Ban)',
+                        desc: `**Yetkili:** <@${interaction.user.id}>\n**Yasaklanan:** <@${user.id}> (\`${user.tag}\`)\n**Sebep:** ${sebep}\n**Mesaj Temizliği:** ${deleteSeconds > 0 ? `${deleteSeconds / 86400} günlük mesaj silindi` : 'Silinmedi'}`,
+                        color: 0x992d22,
+                        thumbnail: user.displayAvatarURL()
+                    });
+
+                    return safeReply(interaction, { content: `🔨 <@${user.id}> (\`${user.tag}\`) başarıyla sunucudan yasaklandı.\n**Sebep:** ${sebep}`, ephemeral: true });
+                }
+
+                if (commandName === 'unban') {
+                    const targetId = interaction.options.getString('kullanici_id').trim();
+                    const sebep = interaction.options.getString('sebep') || 'Yasak kaldırıldı (/unban)';
+
+                    try {
+                        const banInfo = await interaction.guild.bans.fetch(targetId).catch(() => null);
+                        if (!banInfo) return safeReply(interaction, { content: '❌ Bu ID\'ye ait aktif bir sunucu yasağı bulunamadı.', ephemeral: true });
+
+                        await interaction.guild.bans.remove(targetId, sebep);
+
+                        sendLog(interaction.guild, 'logCeza', {
+                            title: 'Sunucu Yasağı Kaldırıldı (Unban)',
+                            desc: `**Yetkili:** <@${interaction.user.id}>\n**Affedilen:** <@${targetId}> (${banInfo.user.tag})\n**Sebep:** ${sebep}`,
+                            color: 0x57f287,
+                            thumbnail: banInfo.user.displayAvatarURL()
+                        });
+
+                        return safeReply(interaction, { content: `✅ <@${targetId}> (\`${banInfo.user.tag}\`) adlı kullanıcının sunucu yasağı başarıyla kaldırıldı.`, ephemeral: true });
+                    } catch (e) {
+                        return safeReply(interaction, { content: `❌ Yasak kaldırılırken bir hata oluştu: ${e.message}`, ephemeral: true });
+                    }
+                }
 
                 if (commandName === 'hapis') {
                     const user = interaction.options.getUser('kullanici');
@@ -3824,15 +4133,6 @@ client.on('interactionCreate', async interaction => {
                         sendLog(interaction.guild, 'logCeza', { title: 'Genel Af Uygulandı', desc: `**Yetkili:** <@${interaction.user.id}>\nSunucudaki tüm üyelerin ceza ve sicil kayıtları sıfırlandı, cezalar kaldırıldı.`, color: 0x57f287 });
                         return safeReply(interaction, { content: 'Sunucudaki tüm sicil ve ceza kayıtları sıfırlandı.', ephemeral: true });
                     }
-                }
-
-                if (commandName === 'sil') {
-                    const miktar = interaction.options.getInteger('miktar');
-                    if (miktar < 1 || miktar > 100) return safeReply(interaction, { content: 'Lütfen 1 ile 100 arasında bir sayı girin.', ephemeral: true });
-                    const deleted = await interaction.channel.bulkDelete(miktar, true).catch(() => null);
-                    const count = deleted ? deleted.size : 0;
-                    sendLog(interaction.guild, 'logMesaj', { title: 'Toplu Mesaj Silme (/sil)', desc: `**Yetkili:** <@${interaction.user.id}>\n**Kanal:** <#${interaction.channel.id}>\n**Miktar:** ${count} adet mesaj silindi.`, color: 0xed4245 });
-                    return safeReply(interaction, { content: `**${count}** adet mesaj silindi.`, ephemeral: true });
                 }
             }
 
@@ -4558,7 +4858,7 @@ client.on('interactionCreate', async interaction => {
                     return interaction.update(buildAyarDashboard(db[guildId]));
                 }
 
-                if (['yetkiliRol', 'muafRol', 'jailRol', 'sicilRol', 'duyuruRol', 'otoRol'].includes(secim)) {
+                if (['yetkiliRol', 'altYetkiliRol', 'ustYetkiliRol', 'muafRol', 'jailRol', 'sicilRol', 'duyuruRol', 'otoRol'].includes(secim)) {
                     const roleSelect = new ActionRowBuilder().addComponents(
                         new RoleSelectMenuBuilder()
                             .setCustomId(`set_ayar_rol_${secim}`)
@@ -5054,7 +5354,7 @@ client.on('interactionCreate', async interaction => {
         // ------------------------------------------------------------------------
         if (interaction.isRoleSelectMenu()) {
             if (interaction.customId.startsWith('set_ayar_rol_')) {
-                if (!isAdmin && !isYetkili) return interaction.reply({ content: '❌ Bu işlemi sadece **Yöneticiler ve Yetkililer** gerçekleştirebilir.', ephemeral: true });
+                if (!isAdmin) return interaction.reply({ content: '❌ Sunucu ayarlarını ve rol tanımlamalarını sadece Sunucu Yöneticileri değiştirebilir.', ephemeral: true });
                 const key = interaction.customId.replace('set_ayar_rol_', '');
                 db[guildId][key] = interaction.values[0];
                 saveDB(db);
@@ -6784,8 +7084,9 @@ client.on('interactionCreate', async interaction => {
                     { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.AttachFiles, PermissionsBitField.Flags.ReadMessageHistory] },
                     { id: client.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ReadMessageHistory] }
                 ];
-                if (db[guildId].yetkiliRol) {
-                    overwrites.push({ id: db[guildId].yetkiliRol, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ManageMessages, PermissionsBitField.Flags.ReadMessageHistory] });
+                const modRoles = [db[guildId].ustYetkiliRol, db[guildId].altYetkiliRol, db[guildId].yetkiliRol].filter(Boolean);
+                for (const rId of new Set(modRoles)) {
+                    overwrites.push({ id: rId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ManageMessages, PermissionsBitField.Flags.ReadMessageHistory] });
                 }
 
                 try {
@@ -6827,7 +7128,8 @@ client.on('interactionCreate', async interaction => {
                         new ButtonBuilder().setCustomId('ticket_close').setLabel('Kapat ve Arşivle').setStyle(ButtonStyle.Danger)
                     );
 
-                    const mentionText = db[guildId].yetkiliRol ? `<@${interaction.user.id}> | <@&${db[guildId].yetkiliRol}>` : `<@${interaction.user.id}>`;
+                    const targetModRole = db[guildId].altYetkiliRol || db[guildId].yetkiliRol || db[guildId].ustYetkiliRol;
+                const mentionText = targetModRole ? `<@${interaction.user.id}> | <@&${targetModRole}>` : `<@${interaction.user.id}>`;
                     await ticketChannel.send({ content: mentionText, embeds: [embed], components: [row] });
 
                     sendLog(interaction.guild, 'logSunucu', {
@@ -7030,7 +7332,8 @@ client.on('messageCreate', async message => {
     }
 
     const isMuaf = Boolean(db[guildId].muafRol && message.member.roles.cache.has(db[guildId].muafRol));
-    const isYetkili = Boolean(db[guildId].yetkiliRol && message.member.roles.cache.has(db[guildId].yetkiliRol));
+    const hasModRole = (rId) => Boolean(rId && message.member.roles.cache.has(rId));
+    const isYetkili = Boolean(hasModRole(db[guildId].altYetkiliRol) || hasModRole(db[guildId].ustYetkiliRol) || hasModRole(db[guildId].yetkiliRol));
     const isAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator);
     const isProtected = Boolean(isAdmin || isYetkili || isMuaf);
 
@@ -7200,7 +7503,8 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
     const guildId = newMessage.guild.id;
     if (db[guildId] && newMessage.member) {
         const isMuaf = Boolean(db[guildId].muafRol && newMessage.member.roles.cache.has(db[guildId].muafRol));
-        const isYetkili = Boolean(db[guildId].yetkiliRol && newMessage.member.roles.cache.has(db[guildId].yetkiliRol));
+        const hasModRole = (rId) => Boolean(rId && newMessage.member.roles.cache.has(rId));
+        const isYetkili = Boolean(hasModRole(db[guildId].altYetkiliRol) || hasModRole(db[guildId].ustYetkiliRol) || hasModRole(db[guildId].yetkiliRol));
         const isAdmin = newMessage.member.permissions.has(PermissionsBitField.Flags.Administrator);
         const isProtected = Boolean(isAdmin || isYetkili || isMuaf);
 
