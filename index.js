@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.12',
+        versiyon: 'v2.1.13',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -1729,23 +1729,20 @@ function buildHomeDashboard(guild) {
         .setDescription(
             `Bu kontrol paneli üzerinden sunucunun tüm moderasyon, güvenlik, geçici ses odası, log, çekiliş, destek (ticket) ve buton rol sistemlerini hiçbir komut ezberlemeden yapılandırabilirsiniz.\n\n` +
             `**1. Sistem Ayarları Butonu**\n` +
-            `Yetkili, muaf, cezalı, sicilli ve oto-rol rollerini; geçici ses odası oluşturucu kanalını, yayın duyuru sistemini, küfür/link engellerini ve bot korumasını buradan yönetebilirsiniz.\n\n` +
+            `Yetkili (Alt & Üst Yönetim), muaf, cezalı, sicilli ve oto-rol rollerini; geçici ses odası kanalını, yayın duyuru sistemini, küfür/link engellerini, Anti-Bot, Anti-Nuke ve Anti-Raid kalkanlarını buradan yönetebilirsiniz.\n\n` +
             `**2. Log Ayarları Butonu**\n` +
             `Sunucuda gerçekleşen tüm olayları 6 ayrı kategoride (Ceza, Mesaj, Ses, Üye, Sunucu, Güvenlik) hangi kanallara raporlanacağını buradan belirleyebilirsiniz.\n\n` +
             `**3. Ticket Kurulumu Butonu**\n` +
-            `İstediğiniz kanala özel destek veya başvuru kutusu kurmanızı sağlar. Üyeler butona bastığında karşılarına bir başvuru formu (Modal) çıkar; konu ve açıklamayı yazıp onayladıklarında özel kanal açılır.\n\n` +
-            `**4. Çekiliş Yönetimi Butonu**\n` +
-            `Sunucuda anlık geri sayımlı çekilişler başlatabilir, katılım şartları (Rol, Seviye) belirleyebilir ve biten çekilişleri yeniden çekebilirsiniz (Reroll).\n\n` +
-            `**5. Buton Rolleri Butonu**\n` +
-            `Üyelerin tek tıkla üzerlerine rol alıp bırakabileceği (Self-Role) panelleri dilediğiniz kanallara kurmanızı ve yönetmenizi sağlar.\n\n` +
+            `İstediğiniz kanala özel destek veya başvuru kutusu kurmanızı sağlar. Üyeler butona bastığında form açılır ve onayladıklarında özel kanal oluşturulur.\n\n` +
+            `**4. Sistem Özeti Butonu**\n` +
+            `Sunucunun tüm aktif kalkanlarını, yetki hiyerarşisini, ceza kurallarını, log ve ses kanallarını tek bir sayfada anlık olarak denetlemenizi sağlar.\n\n` +
+            `**5. Ekonomi, Çekiliş ve Buton Rolleri Butonları**\n` +
+            `Ekonomi katsayılarını, seviye ödül rollerini, anlık çekilişleri ve üyelerin kendi rollerini alabildiği buton rol panellerini yönetebilirsiniz.\n\n` +
             `**6. Komutlar ve Yetki Dağılımı**\n` +
             `- \`/panel\` : Bu yönetim ekranını açar (Sadece Sunucu Yöneticileri).\n` +
-            `- \`/butonrol\` : Buton rol paneli oluşturma ve yönetim komutları.\n` +
-            `- \`/cekilis\` : Çekiliş başlatma ve yönetim komutları (Yöneticiler).\n` +
-            `- \`/yaz\` : Bot üzerinden kanala duyuru/mesaj yazar (Sadece Sunucu Yöneticileri).\n` +
-            `- \`/hapis\` : Kullanıcıyı belirtilen süreyle cezalıya atar (Yöneticiler ve Yetkili Rol).\n` +
-            `- \`/af\` : Kullanıcının cezasını ve sicilini temizler (Yöneticiler ve Yetkili Rol).\n` +
-            `- \`/sil\` : Kanaldaki mesajları toplu olarak temizler (Yöneticiler ve Yetkili Rol).`
+            `- **Alt Yönetim (Moderatör):** \`/uyar\` (3 uyarıda 30dk ceza), \`/sustur\` (zaman aşımı), \`/sil\` (mesaj temizleme).\n` +
+            `- **Üst Yönetim (Admin):** \`/hapis\`, \`/af\`, \`/kick\`, \`/ban\`, \`/unban\` ve alt yönetim komutları.\n` +
+            `- **Genel & Eğlence:** \`/profil\`, \`/siralama\`, \`/market\`, \`/gunluk\`, \`/bj\`, \`/slot\`, \`/yazitura\`, \`/radyo\`, \`/cekilis\`, \`/butonrol\`.`
         )
         .setColor(0x2b2d31)
         .setTimestamp();
@@ -1916,24 +1913,67 @@ function buildTicketDashboard(guildDb) {
 }
 
 function buildInfoDashboard(guild, guildDb) {
-    const getRole = (id) => id ? `<@&${id}>` : 'Atanmamış';
-    const getCh = (id) => id ? `<#${id}>` : 'Atanmamış';
+    const getRole = (id) => id ? `<@&${id}>` : '`Atanmamış`';
+    const getCh = (id) => id ? `<#${id}>` : '`Atanmamış`';
     const trackerCount = Array.isArray(guildDb.trackers) ? guildDb.trackers.length : 0;
+    const customKufurCount = Array.isArray(guildDb.customKufurler) ? guildDb.customKufurler.length : 0;
+    const botWhitelistCount = Array.isArray(guildDb.botWhitelist) ? guildDb.botWhitelist.length : 0;
 
     const activeTickets = guildDb.tickets ? Object.keys(guildDb.tickets).length : 0;
     const activeRooms = guildDb.tempRooms ? Object.keys(guildDb.tempRooms).length : 0;
+    const warnedMembersCount = guildDb.uyarilar ? Object.keys(guildDb.uyarilar).length : 0;
 
     const embed = new EmbedBuilder()
-        .setTitle(`${guild.name} - Sistem Durum Özeti`)
+        .setTitle(`🛡️ ${guild.name} — Sistem ve Güvenlik Durum Özeti`)
         .setColor(0x2b2d31)
         .setThumbnail(guild.iconURL({ dynamic: true }))
+        .setDescription('Sunucunuzun anlık güvenlik kalkanları, moderasyon hiyerarşisi, aktif kısıtlamaları ve kanal yapılandırma özeti aşağıda listelenmiştir.')
         .addFields(
-            { name: 'Sunucu İstatistikleri', value: `Üye Sayısı: **${guild.memberCount}** | Açık Ticket: **${activeTickets}** | Açık Geçici Oda: **${activeRooms}**`, inline: false },
-            { name: 'Rol Ayarları', value: `Alt Yönetim: ${getRole(guildDb.altYetkiliRol || guildDb.yetkiliRol)}\nÜst Yönetim: ${getRole(guildDb.ustYetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
-            { name: 'Kanal ve Yayın Ayarları', value: `Oda Oluşturucu: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
-            { name: 'Log Kanalları', value: `**Ceza:** ${getCh(guildDb.logCeza)}\n**Mesaj:** ${getCh(guildDb.logMesaj)}\n**Ses:** ${getCh(guildDb.logSes)}\n**Üye:** ${getCh(guildDb.logUye)}\n**Sunucu:** ${getCh(guildDb.logSunucu)}\n**Güvenlik:** ${getCh(guildDb.logGuvenlik)}`, inline: false },
-            { name: 'Koruma Filtreleri', value: `Link Engeli: **${guildDb.linkEngel ? 'Aktif' : 'Kapalı'}** | Küfür Engeli: **${guildDb.kufurEngel ? 'Aktif' : 'Kapalı'}** | Oto-Cevap: **${guildDb.otoCevap !== false ? 'Aktif' : 'Kapalı'}**`, inline: false }
+            {
+                name: '📊 Sunucu İstatistikleri',
+                value: `• **Toplam Üye:** \`${guild.memberCount}\`\n• **Açık Ticket:** \`${activeTickets}\`\n• **Aktif Geçici Oda:** \`${activeRooms}\`\n• **Takip Edilen Yayıncı:** \`${trackerCount}\`\n• **Aktif Uyarı Kaydı Olan:** \`${warnedMembersCount}\``,
+                inline: true
+            },
+            {
+                name: '👥 Yetkili ve Rol Kademeleri',
+                value: `• **Alt Yönetim (Mod):** ${getRole(guildDb.altYetkiliRol || guildDb.yetkiliRol)}\n• **Üst Yönetim (Admin):** ${getRole(guildDb.ustYetkiliRol)}\n• **Muaf Rolü:** ${getRole(guildDb.muafRol)}\n• **Cezalı (Jail) Rolü:** ${getRole(guildDb.jailRol)}\n• **Sicilli Rolü:** ${getRole(guildDb.sicilRol)}\n• **Oto-Rol:** ${getRole(guildDb.otoRol)}`,
+                inline: true
+            },
+            {
+                name: '🛡️ Güvenlik Kalkanları ve Savunma Durumu',
+                value: [
+                    `• **Anti-Nuke (Darbe Kalkanı):** ${guildDb.antiNuke !== false ? '🟢 **AKTİF** *(10sn / 5 silme eşiği)*' : '🔴 **KAPALI**'}`,
+                    `• **Anti-Raid (Baskın Kalkanı):** ${guildDb.antiRaid !== false ? '🟢 **AKTİF** *(≤ 3 günlük hesap karantinası)*' : '🔴 **KAPALI**'}`,
+                    `• **Anti-Bot (İzinsiz Bot Engeli):** ${guildDb.antiBot !== false ? `🟢 **AKTİF** *(+${botWhitelistCount} beyaz listede)*` : '🔴 **KAPALI**'}`,
+                    `• **Küfür / Argo Koruması:** ${guildDb.kufurEngel ? `🟢 **AKTİF** *(+${customKufurCount} özel kelime)*` : '🔴 **KAPALI**'}`,
+                    `• **Link / Reklam Engeli:** ${guildDb.linkEngel ? '🟢 **AKTİF** *(2 uyarı -> Jail)*' : '🔴 **KAPALI**'}`,
+                    `• **Caps Lock Koruması:** ${guildDb.capsEngel !== false ? '🟢 **AKTİF** *(%70+ büyük harf engeli)*' : '🔴 **KAPALI**'}`,
+                    `• **Akıllı Oto-Cevap:** ${guildDb.otoCevap !== false ? '🟢 **AKTİF**' : '🔴 **KAPALI**'}`
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '⚖️ Moderasyon Hiyerarşisi ve Ceza Kuralları',
+                value: [
+                    `• **3 Manuel Uyarı Kuralı:** 3 uyarı alan kullanıcı otomatik **30 dk Zaman Aşımı (Timeout)** yer; **Cezalı** ve **Sicilli** rolleri verilir.`,
+                    `• **Alt Yönetim:** \`/uyar\`, \`/sustur\`, \`/sil\` komutlarını kullanabilir.`,
+                    `• **Üst Yönetim:** \`/kick\`, \`/ban\`, \`/unban\`, \`/hapis\`, \`/af\` ve tüm alt yönetim komutlarını kullanabilir.`,
+                    `• **Sistem Yönetimi:** Bot ve \`/panel\` ayarları yalnızca **Sunucu Sahibi** ve **Administrator** yetkililerine açıktır.`
+                ].join('\n'),
+                inline: false
+            },
+            {
+                name: '📋 Log Denetim Kanalları',
+                value: `**Ceza:** ${getCh(guildDb.logCeza)} | **Mesaj:** ${getCh(guildDb.logMesaj)} | **Ses:** ${getCh(guildDb.logSes)}\n**Üye:** ${getCh(guildDb.logUye)} | **Sunucu:** ${getCh(guildDb.logSunucu)} | **Güvenlik:** ${getCh(guildDb.logGuvenlik)}`,
+                inline: false
+            },
+            {
+                name: '🎙️ Ses ve Yayın Yapılandırması',
+                value: `• **Geçici Oda Oluşturucu:** ${getCh(guildDb.odaKanal)}\n• **Geçici Oda Kategorisi:** ${getCh(guildDb.odaKategori)}\n• **Yayın Duyuru Kanalı:** ${getCh(guildDb.duyuruKanal)}\n• **Yayın Duyuru Rolü:** ${getRole(guildDb.duyuruRol)}`,
+                inline: false
+            }
         )
+        .setFooter({ text: 'Memur Hüsnü Yönetim & Güvenlik Sistemi', iconURL: guild.client.user.displayAvatarURL() })
         .setTimestamp();
 
     return { content: '', embeds: [embed], components: [...buildDashboardButtons('info')] };
