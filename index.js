@@ -1741,7 +1741,7 @@ function buildHomeDashboard(guild) {
             `**6. Komutlar ve Yetki Dağılımı**\n` +
             `- \`/panel\` : Bu yönetim ekranını açar (Sadece Sunucu Yöneticileri).\n` +
             `- **Alt Yönetim (Moderatör):** \`/uyar\` (3 uyarıda 30dk ceza), \`/sustur\` (zaman aşımı), \`/sil\` (mesaj temizleme).\n` +
-            `- **Üst Yönetim (Admin):** \`/hapis\`, \`/af\`, \`/kick\`, \`/ban\`, \`/unban\` ve alt yönetim komutları.\n` +
+            `- **Üst Yönetim (Admin):** \`/rol-ver\` (çoklu rol alım/terfi), \`/rol-al\`, \`/hapis\`, \`/af\`, \`/kick\`, \`/ban\`, \`/unban\` ve alt yönetim komutları.\n` +
             `- **Genel & Eğlence:** \`/profil\`, \`/siralama\`, \`/market\`, \`/gunluk\`, \`/bj\`, \`/slot\`, \`/yazitura\`, \`/radyo\`, \`/cekilis\`, \`/butonrol\`.`
         )
         .setColor(0x2b2d31)
@@ -1957,7 +1957,7 @@ function buildInfoDashboard(guild, guildDb) {
                 value: [
                     `• **3 Manuel Uyarı Kuralı:** 3 uyarı alan kullanıcı otomatik **30 dk Zaman Aşımı (Timeout)** yer; **Cezalı** ve **Sicilli** rolleri verilir.`,
                     `• **Alt Yönetim:** \`/uyar\`, \`/sustur\`, \`/sil\` komutlarını kullanabilir.`,
-                    `• **Üst Yönetim:** \`/kick\`, \`/ban\`, \`/unban\`, \`/hapis\`, \`/af\` ve tüm alt yönetim komutlarını kullanabilir.`,
+                    `• **Üst Yönetim:** \`/rol-ver\`, \`/rol-al\` (çoklu rol alım/düzenleme), \`/kick\`, \`/ban\`, \`/unban\`, \`/hapis\`, \`/af\` ve tüm alt yönetim komutlarını kullanabilir.`,
                     `• **Sistem Yönetimi:** Bot ve \`/panel\` ayarları yalnızca **Sunucu Sahibi** ve **Administrator** yetkililerine açıktır.`
                 ].join('\n'),
                 inline: false
@@ -3433,6 +3433,22 @@ client.once('ready', async () => {
             ]
         },
         {
+            name: 'rol-ver',
+            description: 'Kullanıcıya tekli veya çoklu rol verir (Üst Yönetim & Yetkili Alımı).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Rol verilecek kullanıcıyı seçin', required: true },
+                { name: 'rol', type: 8, description: 'Hemen verilmek istenen tek bir rol (İsteğe bağlı, boş bırakırsanız çoklu menü açılır)', required: false }
+            ]
+        },
+        {
+            name: 'rol-al',
+            description: 'Kullanıcıdan tekli veya çoklu rol alır (Üst Yönetim & Rol Düzenleme).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Rolü alınacak kullanıcıyı seçin', required: true },
+                { name: 'rol', type: 8, description: 'Hemen alınmak istenen tek bir rol (İsteğe bağlı, boş bırakırsanız çoklu menü açılır)', required: false }
+            ]
+        },
+        {
             name: 'hapis',
             description: 'Kullanıcıyı belirtilen süre ve sebeple cezalıya (hapis) atar.',
             options: [
@@ -3963,11 +3979,11 @@ client.on('interactionCreate', async interaction => {
             }
 
             // ------------------------------------------------------------------------
-            // ÜST YÖNETİM (ADMİN) KOMUTLARI: /hapis, /af, /kick, /ban, /unban
+            // ÜST YÖNETİM (ADMİN) KOMUTLARI: /hapis, /af, /kick, /ban, /unban, /rol-ver, /rol-al
             // ------------------------------------------------------------------------
-            if (['hapis', 'af', 'kick', 'ban', 'unban'].includes(commandName)) {
+            if (['hapis', 'af', 'kick', 'ban', 'unban', 'rol-ver', 'rol-al'].includes(commandName)) {
                 if (!isUstYonetim) {
-                    return safeReply(interaction, { content: '❌ Bu komut ağır yaptırım içerdiği için sadece **Üst Yönetim (Admin)** tarafından kullanılabilir.', ephemeral: true });
+                    return safeReply(interaction, { content: '❌ Bu komut sadece **Üst Yönetim (Admin)** ve Sunucu Yöneticileri tarafından kullanılabilir.', ephemeral: true });
                 }
 
                 if (commandName === 'kick') {
@@ -4064,6 +4080,164 @@ client.on('interactionCreate', async interaction => {
                     } catch (e) {
                         return safeReply(interaction, { content: `❌ Yasak kaldırılırken bir hata oluştu: ${e.message}`, ephemeral: true });
                     }
+                }
+
+                if (commandName === 'rol-ver') {
+                    const targetUser = interaction.options.getUser('kullanici');
+                    const directRole = interaction.options.getRole('rol');
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+                    if (!targetMember) return safeReply(interaction, { content: '❌ Kullanıcı sunucuda bulunamadı.', ephemeral: true });
+
+                    const isOwner = interaction.guild.ownerId === interaction.user.id;
+                    if (!isOwner && targetMember.id === interaction.guild.ownerId) {
+                        return safeReply(interaction, { content: '❌ Sunucu sahibinin rolleri üzerinde işlem yapamazsınız.', ephemeral: true });
+                    }
+                    if (!isOwner && targetMember.id !== interaction.user.id && targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+                        return safeReply(interaction, { content: '❌ Kendinizle aynı veya sizden daha yüksek yetkideki bir üyenin rollerini düzenleyemezsiniz.', ephemeral: true });
+                    }
+
+                    if (directRole) {
+                        if (directRole.id === interaction.guild.id) {
+                            return safeReply(interaction, { content: '❌ @everyone rolü verilemez.', ephemeral: true });
+                        }
+                        if (directRole.managed) {
+                            return safeReply(interaction, { content: '❌ Bu rol bir bot veya entegrasyon rolü olduğu için manuel verilemez.', ephemeral: true });
+                        }
+                        if (directRole.position >= interaction.guild.members.me.roles.highest.position) {
+                            return safeReply(interaction, { content: '❌ Bu rol benim en yüksek rolümden üstte olduğu için veremiyorum.', ephemeral: true });
+                        }
+                        if (!isOwner && directRole.position >= interaction.member.roles.highest.position) {
+                            return safeReply(interaction, { content: '❌ Kendi rolünüzden yüksek veya eşit bir rolü veremezsiniz.', ephemeral: true });
+                        }
+                        if (targetMember.roles.cache.has(directRole.id)) {
+                            return safeReply(interaction, { content: `ℹ️ <@${targetMember.id}> zaten <@&${directRole.id}> rolüne sahip.`, ephemeral: true });
+                        }
+
+                        await targetMember.roles.add(directRole.id, `Yetkili ${interaction.user.tag} tarafından /rol-ver ile verildi`);
+
+                        sendLog(interaction.guild, 'logSunucu', {
+                            title: 'Rol Verildi (/rol-ver)',
+                            desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Verilen Rol:** <@&${directRole.id}>`,
+                            color: 0x57f287,
+                            thumbnail: targetMember.user.displayAvatarURL()
+                        });
+
+                        const embed = new EmbedBuilder()
+                            .setTitle('✅ Rol Başarıyla Verildi')
+                            .setDescription(`**Kullanıcı:** <@${targetMember.id}>\n**Verilen Rol:** <@&${directRole.id}>\n**Yetkili:** <@${interaction.user.id}>`)
+                            .setColor(0x57f287)
+                            .setTimestamp();
+
+                        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+                    }
+
+                    const roleMenu = new RoleSelectMenuBuilder()
+                        .setCustomId(`rol_ver_select_${targetMember.id}_${interaction.user.id}`)
+                        .setPlaceholder('Verilecek rolleri seçin (Birden çok rol seçebilirsiniz)...')
+                        .setMinValues(1)
+                        .setMaxValues(25);
+
+                    const cancelBtn = new ButtonBuilder()
+                        .setCustomId(`rol_ver_cancel_${targetMember.id}_${interaction.user.id}`)
+                        .setLabel('İptal')
+                        .setStyle(ButtonStyle.Secondary);
+
+                    const row1 = new ActionRowBuilder().addComponents(roleMenu);
+                    const row2 = new ActionRowBuilder().addComponents(cancelBtn);
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎭 Çoklu Rol Verme Menüsü')
+                        .setDescription(
+                            `**Hedef Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n` +
+                            `**İşlemi Yapan Yetkili:** <@${interaction.user.id}>\n\n` +
+                            `Aşağıdaki açılır menüden kullanıcıya vermek istediğiniz rolleri seçin.\n` +
+                            `💡 **Birden fazla rol seçebilirsiniz.** Seçimi tamamladığınızda roller otomatik tanımlanacaktır.`
+                        )
+                        .setColor(0x5865f2)
+                        .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                        .setFooter({ text: 'Üst Yönetim Yetkili Alım & Terfi Sistemi' });
+
+                    return safeReply(interaction, { embeds: [embed], components: [row1, row2], ephemeral: true });
+                }
+
+                if (commandName === 'rol-al') {
+                    const targetUser = interaction.options.getUser('kullanici');
+                    const directRole = interaction.options.getRole('rol');
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+                    if (!targetMember) return safeReply(interaction, { content: '❌ Kullanıcı sunucuda bulunamadı.', ephemeral: true });
+
+                    const isOwner = interaction.guild.ownerId === interaction.user.id;
+                    if (!isOwner && targetMember.id === interaction.guild.ownerId) {
+                        return safeReply(interaction, { content: '❌ Sunucu sahibinin rolleri üzerinde işlem yapamazsınız.', ephemeral: true });
+                    }
+                    if (!isOwner && targetMember.id !== interaction.user.id && targetMember.roles.highest.position >= interaction.member.roles.highest.position) {
+                        return safeReply(interaction, { content: '❌ Kendinizle aynı veya sizden daha yüksek yetkideki bir üyenin rollerini düzenleyemezsiniz.', ephemeral: true });
+                    }
+
+                    if (directRole) {
+                        if (directRole.id === interaction.guild.id) {
+                            return safeReply(interaction, { content: '❌ @everyone rolü alınamaz.', ephemeral: true });
+                        }
+                        if (directRole.managed) {
+                            return safeReply(interaction, { content: '❌ Bu rol bir bot veya entegrasyon rolü olduğu için manuel alınamaz.', ephemeral: true });
+                        }
+                        if (directRole.position >= interaction.guild.members.me.roles.highest.position) {
+                            return safeReply(interaction, { content: '❌ Bu rol benim en yüksek rolümden üstte olduğu için alamıyorum.', ephemeral: true });
+                        }
+                        if (!isOwner && directRole.position >= interaction.member.roles.highest.position) {
+                            return safeReply(interaction, { content: '❌ Kendi rolünüzden yüksek veya eşit bir rolü alamazsınız.', ephemeral: true });
+                        }
+                        if (!targetMember.roles.cache.has(directRole.id)) {
+                            return safeReply(interaction, { content: `ℹ️ <@${targetMember.id}> zaten <@&${directRole.id}> rolüne sahip değil.`, ephemeral: true });
+                        }
+
+                        await targetMember.roles.remove(directRole.id, `Yetkili ${interaction.user.tag} tarafından /rol-al ile alındı`);
+
+                        sendLog(interaction.guild, 'logSunucu', {
+                            title: 'Rol Alındı (/rol-al)',
+                            desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Alınan Rol:** <@&${directRole.id}>`,
+                            color: 0xed4245,
+                            thumbnail: targetMember.user.displayAvatarURL()
+                        });
+
+                        const embed = new EmbedBuilder()
+                            .setTitle('✂️ Rol Başarıyla Geri Alındı')
+                            .setDescription(`**Kullanıcı:** <@${targetMember.id}>\n**Alınan Rol:** <@&${directRole.id}>\n**Yetkili:** <@${interaction.user.id}>`)
+                            .setColor(0xed4245)
+                            .setTimestamp();
+
+                        return safeReply(interaction, { embeds: [embed], ephemeral: true });
+                    }
+
+                    const roleMenu = new RoleSelectMenuBuilder()
+                        .setCustomId(`rol_al_select_${targetMember.id}_${interaction.user.id}`)
+                        .setPlaceholder('Alınacak rolleri seçin (Birden çok rol seçebilirsiniz)...')
+                        .setMinValues(1)
+                        .setMaxValues(25);
+
+                    const cancelBtn = new ButtonBuilder()
+                        .setCustomId(`rol_al_cancel_${targetMember.id}_${interaction.user.id}`)
+                        .setLabel('İptal')
+                        .setStyle(ButtonStyle.Secondary);
+
+                    const row1 = new ActionRowBuilder().addComponents(roleMenu);
+                    const row2 = new ActionRowBuilder().addComponents(cancelBtn);
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('✂️ Çoklu Rol Alma Menüsü')
+                        .setDescription(
+                            `**Hedef Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n` +
+                            `**İşlemi Yapan Yetkili:** <@${interaction.user.id}>\n\n` +
+                            `Aşağıdaki açılır menüden kullanıcıdan almak istediğiniz rolleri seçin.\n` +
+                            `💡 **Birden fazla rol seçebilirsiniz.** Seçimi tamamladığınızda roller otomatik geri alınacaktır.`
+                        )
+                        .setColor(0xed4245)
+                        .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                        .setFooter({ text: 'Üst Yönetim Rol Düzenleme Sistemi' });
+
+                    return safeReply(interaction, { embeds: [embed], components: [row1, row2], ephemeral: true });
                 }
 
                 if (commandName === 'hapis') {
@@ -5461,6 +5635,224 @@ client.on('interactionCreate', async interaction => {
 
                 return interaction.update(buildButtonRoleDashboard(interaction.guild, db[guildId], targetChId)).catch(() => { });
             }
+
+            if (interaction.customId.startsWith('rol_ver_select_')) {
+                const parts = interaction.customId.split('_');
+                const targetUserId = parts[3];
+                const callerId = parts[4];
+
+                if (callerId && interaction.user.id !== callerId && !isAdmin) {
+                    return interaction.reply({ content: '❌ Bu rol menüsünü yalnızca işlemi başlatan yetkili kullanabilir.', ephemeral: true });
+                }
+
+                if (!isUstYonetim) {
+                    return interaction.reply({ content: '❌ Bu işlemi gerçekleştirmek için **Üst Yönetim** yetkisine sahip olmalısınız.', ephemeral: true });
+                }
+
+                await interaction.deferUpdate().catch(() => { });
+
+                const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+                if (!targetMember) {
+                    return interaction.editReply({ content: '❌ Hedef kullanıcı artık sunucuda bulunamadı.', embeds: [], components: [] }).catch(() => { });
+                }
+
+                const selectedRoleIds = interaction.values || [];
+                const botHighest = interaction.guild.members.me.roles.highest.position;
+                const callerHighest = interaction.member.roles.highest.position;
+                const isOwner = interaction.guild.ownerId === interaction.user.id;
+
+                const addedRoles = [];
+                const alreadyHadRoles = [];
+                const failedRoles = [];
+                const toAddIds = [];
+
+                for (const rId of selectedRoleIds) {
+                    const role = interaction.guild.roles.cache.get(rId);
+                    if (!role) continue;
+
+                    if (role.id === interaction.guild.id) {
+                        failedRoles.push({ role, reason: '@everyone rolü verilemez' });
+                        continue;
+                    }
+                    if (role.managed) {
+                        failedRoles.push({ role, reason: 'Bot/entegrasyon rolü' });
+                        continue;
+                    }
+                    if (role.position >= botHighest) {
+                        failedRoles.push({ role, reason: 'Bot yetkisinden yüksek' });
+                        continue;
+                    }
+                    if (!isOwner && role.position >= callerHighest) {
+                        failedRoles.push({ role, reason: 'Kendi rolünüzden yüksek' });
+                        continue;
+                    }
+                    if (targetMember.roles.cache.has(role.id)) {
+                        alreadyHadRoles.push(role);
+                        continue;
+                    }
+
+                    toAddIds.push(role.id);
+                    addedRoles.push(role);
+                }
+
+                if (toAddIds.length > 0) {
+                    try {
+                        await targetMember.roles.add(toAddIds, `Üst Yönetim (${interaction.user.tag}) tarafından /rol-ver ile verildi`);
+                    } catch (err) {
+                        addedRoles.length = 0;
+                        for (const rId of toAddIds) {
+                            const role = interaction.guild.roles.cache.get(rId);
+                            try {
+                                await targetMember.roles.add(rId, `Üst Yönetim (${interaction.user.tag}) tarafından /rol-ver ile verildi`);
+                                addedRoles.push(role);
+                            } catch (e) {
+                                failedRoles.push({ role, reason: 'Yetki/API hatası' });
+                            }
+                        }
+                    }
+                }
+
+                let desc = `**Hedef Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Yetkili:** <@${interaction.user.id}>\n\n`;
+                if (addedRoles.length > 0) {
+                    desc += `✅ **Verilen Roller (${addedRoles.length}):**\n${addedRoles.map(r => `• <@&${r.id}>`).join('\n')}\n\n`;
+                }
+                if (alreadyHadRoles.length > 0) {
+                    desc += `ℹ️ **Zaten Sahip Olduğu Roller (${alreadyHadRoles.length}):**\n${alreadyHadRoles.map(r => `• <@&${r.id}>`).join('\n')}\n\n`;
+                }
+                if (failedRoles.length > 0) {
+                    desc += `⚠️ **Yetki Sınırı Sebebiyle Verilemeyen Roller (${failedRoles.length}):**\n${failedRoles.map(f => `• <@&${f.role.id}> *(${f.reason})*`).join('\n')}\n\n`;
+                }
+                if (addedRoles.length === 0 && alreadyHadRoles.length === 0 && failedRoles.length === 0) {
+                    desc += 'Hiçbir geçerli rol seçilmedi.';
+                }
+
+                const resultEmbed = new EmbedBuilder()
+                    .setTitle('🎭 Rol Verme İşlemi Tamamlandı')
+                    .setDescription(desc)
+                    .setColor(addedRoles.length > 0 ? 0x57f287 : 0xed4245)
+                    .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp();
+
+                if (addedRoles.length > 0) {
+                    sendLog(interaction.guild, 'logSunucu', {
+                        title: 'Çoklu Rol Verildi (/rol-ver)',
+                        desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Verilen Roller:** ${addedRoles.map(r => `<@&${r.id}>`).join(', ')}`,
+                        color: 0x57f287,
+                        thumbnail: targetMember.user.displayAvatarURL()
+                    });
+                }
+
+                return interaction.editReply({ embeds: [resultEmbed], components: [] }).catch(() => { });
+            }
+
+            if (interaction.customId.startsWith('rol_al_select_')) {
+                const parts = interaction.customId.split('_');
+                const targetUserId = parts[3];
+                const callerId = parts[4];
+
+                if (callerId && interaction.user.id !== callerId && !isAdmin) {
+                    return interaction.reply({ content: '❌ Bu rol menüsünü yalnızca işlemi başlatan yetkili kullanabilir.', ephemeral: true });
+                }
+
+                if (!isUstYonetim) {
+                    return interaction.reply({ content: '❌ Bu işlemi gerçekleştirmek için **Üst Yönetim** yetkisine sahip olmalısınız.', ephemeral: true });
+                }
+
+                await interaction.deferUpdate().catch(() => { });
+
+                const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+                if (!targetMember) {
+                    return interaction.editReply({ content: '❌ Hedef kullanıcı artık sunucuda bulunamadı.', embeds: [], components: [] }).catch(() => { });
+                }
+
+                const selectedRoleIds = interaction.values || [];
+                const botHighest = interaction.guild.members.me.roles.highest.position;
+                const callerHighest = interaction.member.roles.highest.position;
+                const isOwner = interaction.guild.ownerId === interaction.user.id;
+
+                const removedRoles = [];
+                const notHadRoles = [];
+                const failedRoles = [];
+                const toRemoveIds = [];
+
+                for (const rId of selectedRoleIds) {
+                    const role = interaction.guild.roles.cache.get(rId);
+                    if (!role) continue;
+
+                    if (role.id === interaction.guild.id) {
+                        failedRoles.push({ role, reason: '@everyone rolü alınamaz' });
+                        continue;
+                    }
+                    if (role.managed) {
+                        failedRoles.push({ role, reason: 'Bot/entegrasyon rolü' });
+                        continue;
+                    }
+                    if (role.position >= botHighest) {
+                        failedRoles.push({ role, reason: 'Bot yetkisinden yüksek' });
+                        continue;
+                    }
+                    if (!isOwner && role.position >= callerHighest) {
+                        failedRoles.push({ role, reason: 'Kendi rolünüzden yüksek' });
+                        continue;
+                    }
+                    if (!targetMember.roles.cache.has(role.id)) {
+                        notHadRoles.push(role);
+                        continue;
+                    }
+
+                    toRemoveIds.push(role.id);
+                    removedRoles.push(role);
+                }
+
+                if (toRemoveIds.length > 0) {
+                    try {
+                        await targetMember.roles.remove(toRemoveIds, `Üst Yönetim (${interaction.user.tag}) tarafından /rol-al ile alındı`);
+                    } catch (err) {
+                        removedRoles.length = 0;
+                        for (const rId of toRemoveIds) {
+                            const role = interaction.guild.roles.cache.get(rId);
+                            try {
+                                await targetMember.roles.remove(rId, `Üst Yönetim (${interaction.user.tag}) tarafından /rol-al ile alındı`);
+                                removedRoles.push(role);
+                            } catch (e) {
+                                failedRoles.push({ role, reason: 'Yetki/API hatası' });
+                            }
+                        }
+                    }
+                }
+
+                let desc = `**Hedef Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Yetkili:** <@${interaction.user.id}>\n\n`;
+                if (removedRoles.length > 0) {
+                    desc += `✂️ **Geri Alınan Roller (${removedRoles.length}):**\n${removedRoles.map(r => `• <@&${r.id}>`).join('\n')}\n\n`;
+                }
+                if (notHadRoles.length > 0) {
+                    desc += `ℹ️ **Kullanıcıda Olmayan Roller (${notHadRoles.length}):**\n${notHadRoles.map(r => `• <@&${r.id}>`).join('\n')}\n\n`;
+                }
+                if (failedRoles.length > 0) {
+                    desc += `⚠️ **Yetki Sınırı Sebebiyle Alınamayan Roller (${failedRoles.length}):**\n${failedRoles.map(f => `• <@&${f.role.id}> *(${f.reason})*`).join('\n')}\n\n`;
+                }
+                if (removedRoles.length === 0 && notHadRoles.length === 0 && failedRoles.length === 0) {
+                    desc += 'Hiçbir geçerli rol seçilmedi.';
+                }
+
+                const resultEmbed = new EmbedBuilder()
+                    .setTitle('✂️ Rol Alma İşlemi Tamamlandı')
+                    .setDescription(desc)
+                    .setColor(removedRoles.length > 0 ? 0xed4245 : 0x2f3136)
+                    .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                    .setTimestamp();
+
+                if (removedRoles.length > 0) {
+                    sendLog(interaction.guild, 'logSunucu', {
+                        title: 'Çoklu Rol Alındı (/rol-al)',
+                        desc: `**Yetkili:** <@${interaction.user.id}>\n**Kullanıcı:** <@${targetMember.id}> (\`${targetMember.user.tag}\`)\n**Alınan Roller:** ${removedRoles.map(r => `<@&${r.id}>`).join(', ')}`,
+                        color: 0xed4245,
+                        thumbnail: targetMember.user.displayAvatarURL()
+                    });
+                }
+
+                return interaction.editReply({ embeds: [resultEmbed], components: [] }).catch(() => { });
+            }
         }
 
         if (interaction.isChannelSelectMenu()) {
@@ -5562,6 +5954,15 @@ client.on('interactionCreate', async interaction => {
         // ------------------------------------------------------------------------
         if (interaction.isButton()) {
             const customId = interaction.customId;
+
+            if (customId.startsWith('rol_ver_cancel_') || customId.startsWith('rol_al_cancel_')) {
+                const parts = customId.split('_');
+                const callerId = parts[4];
+                if (callerId && interaction.user.id !== callerId && !isAdmin) {
+                    return interaction.reply({ content: '❌ Bu işlemi yalnızca başlatan yetkili iptal edebilir.', ephemeral: true });
+                }
+                return interaction.update({ content: '❌ Rol işlemi iptal edildi.', embeds: [], components: [] }).catch(() => { });
+            }
 
             // --- BLACKJACK (21) BUTONLARI ---
             if (['btn_bj_hit', 'btn_bj_stand', 'btn_bj_double'].includes(customId)) {
