@@ -1,7 +1,7 @@
 {
   "name": "memur-husnu",
-  "version": "2.1.15",
-  "description": "Memur Hüsnü v2.1.15 - Anlık Sunucu Slash Komut Senkronizasyonu ve Çoklu Rol Yönetimi",
+  "version": "2.1.16",
+  "description": "Memur Hüsnü v2.1.16 - Çift Komut Tekilleştirme ve Temizleme Düzeltmesi",
   "main": "index.js",
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js"

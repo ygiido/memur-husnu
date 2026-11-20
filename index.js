@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.15',
+        versiyon: 'v2.1.16',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -3735,14 +3735,12 @@ client.once('ready', async () => {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Komutların Discord global önbelleğini (1-2 saat) beklemeden sunucularda anında (0 sn) görünmesi için tüm komutları sunuculara anlık senkronize et:
+    // Sunucularda çift komut görünmesini engellemek için yerel sunucu komutlarını temizle (Sadece tekil global komutlar kalır):
     for (const guild of client.guilds.cache.values()) {
         try {
-            await guild.commands.set(commands);
-            addLiveLog(`✅ [KOMUT SENKRONİZASYON]: ${guild.name} sunucusuna tüm (${commands.length}) slash komutları anında tanımlandı.`);
-        } catch (err) {
-            addLiveLog(`⚠️ [KOMUT SENKRONİZASYON HATASI]: ${guild.name} sunucusuna komutlar yüklenemedi: ${err.message}`);
-        }
+            await guild.commands.set([]);
+            addLiveLog(`✅ [KOMUT TEKİLLEŞTİRME]: ${guild.name} sunucusundaki yerel kopyalar temizlendi, tekil komutlar aktif.`);
+        } catch (err) { }
     }
 });
 
@@ -3753,7 +3751,7 @@ client.on('guildCreate', async guild => {
         addLiveLog(`[İZİNSİZ SUNUCU]: ${guild.name} (${guild.id}) ayrılınıyor...`);
         return guild.leave().catch(() => { });
     }
-    await guild.commands.set(commands).catch(() => { });
+    await guild.commands.set([]).catch(() => { });
 });
 
 // Güvenli etkileşim yanıt yardımcısı (Hem deferred hem doğrudan yanıtı hatasız yönetir)
