@@ -1,7 +1,7 @@
 {
   "name": "memur-husnu",
-  "version": "2.1.13",
-  "description": "Memur Hüsnü v2.1.13 - Güncellenmiş Sistem Özeti ve Gelişmiş Güvenlik/Yetki Yönetimi",
+  "version": "2.1.15",
+  "description": "Memur Hüsnü v2.1.15 - Anlık Sunucu Slash Komut Senkronizasyonu ve Çoklu Rol Yönetimi",
   "main": "index.js",
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js"

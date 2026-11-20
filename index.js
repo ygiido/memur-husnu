@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.13',
+        versiyon: 'v2.1.15',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -3735,23 +3735,25 @@ client.once('ready', async () => {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Yeni eklenen komutların Discord global önbelleğini beklemeden anında (0 sn) görünmesi için sadece yenileri sunucuya tanımla:
-    const newInstantCommands = commands.filter(c => ['ses-paneli', 'oda-paneli'].includes(c.name));
+    // Komutların Discord global önbelleğini (1-2 saat) beklemeden sunucularda anında (0 sn) görünmesi için tüm komutları sunuculara anlık senkronize et:
     for (const guild of client.guilds.cache.values()) {
         try {
-            await guild.commands.set(newInstantCommands);
-            addLiveLog(`✅ [KOMUT]: ${guild.name} sunucusuna anlık /ses-paneli komutları tanımlandı.`);
-        } catch (err) { }
+            await guild.commands.set(commands);
+            addLiveLog(`✅ [KOMUT SENKRONİZASYON]: ${guild.name} sunucusuna tüm (${commands.length}) slash komutları anında tanımlandı.`);
+        } catch (err) {
+            addLiveLog(`⚠️ [KOMUT SENKRONİZASYON HATASI]: ${guild.name} sunucusuna komutlar yüklenemedi: ${err.message}`);
+        }
     }
 });
 
 // Sunucuya yeni eklendiğinde izinli değilse derhal ayrıl
-client.on('guildCreate', guild => {
+client.on('guildCreate', async guild => {
     const ALLOWED_GUILDS = ['977315836714971187', '825075341629718589', '1538928601951633599'];
     if (!ALLOWED_GUILDS.includes(guild.id)) {
         addLiveLog(`[İZİNSİZ SUNUCU]: ${guild.name} (${guild.id}) ayrılınıyor...`);
-        guild.leave().catch(() => { });
+        return guild.leave().catch(() => { });
     }
+    await guild.commands.set(commands).catch(() => { });
 });
 
 // Güvenli etkileşim yanıt yardımcısı (Hem deferred hem doğrudan yanıtı hatasız yönetir)
