@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.16',
+        versiyon: 'v2.1.17',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -1773,7 +1773,7 @@ function buildAyarDashboard(guildDb) {
         .addFields(
             { name: '👥 Rol Yapılandırması', value: `Alt Yönetim (Mod): ${getRole(guildDb.altYetkiliRol || guildDb.yetkiliRol)}\nÜst Yönetim (Admin): ${getRole(guildDb.ustYetkiliRol)}\nMuaf: ${getRole(guildDb.muafRol)}\nCezalı (Jail): ${getRole(guildDb.jailRol)}\nSicilli: ${getRole(guildDb.sicilRol)}\nOto-Rol: ${getRole(guildDb.otoRol)}`, inline: true },
             { name: '🎙️ Ses ve Yayın', value: `Oda Paneli Kanalı: ${getCh(guildDb.odaKanal)}\nOda Kategorisi: ${getCh(guildDb.odaKategori)}\nDuyuru Kanalı: ${getCh(guildDb.duyuruKanal)}\nTakip Edilen: **${trackerCount} kanal**`, inline: true },
-            { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nAnti-Nuke: **${guildDb.antiNuke !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(10sn / 5 silme)*\nAnti-Raid: **${guildDb.antiRaid !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(≤ 3 günlük hesap)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
+            { name: '🛡️ Güvenlik ve Koruma Durumu', value: `Link/Reklam: **${guildDb.linkEngel ? '🟢 AÇIK' : '🔴 KAPALI'}**\nKüfür Koruması: **${guildDb.kufurEngel ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${customKufurCount} özel kelime)*\nCaps Lock: **${guildDb.capsEngel !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**\nİzinsiz Bot Engeli: **${guildDb.antiBot !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(+${botWhitelistCount} beyaz listede)*\nAnti-Nuke: **${guildDb.antiNuke !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(10sn / 5 silme)*\nAnti-Raid: **${guildDb.antiRaid !== false ? '🟢 AÇIK' : '🔴 KAPALI'}** *(≤ 15 günlük hesap)*\nOto-Cevap: **${guildDb.otoCevap !== false ? '🟢 AÇIK' : '🔴 KAPALI'}**`, inline: false }
         );
 
     // Hızlı Aç/Kapat Butonları (5 Temel Güvenlik Kalkanı)
@@ -1943,7 +1943,7 @@ function buildInfoDashboard(guild, guildDb) {
                 name: '🛡️ Güvenlik Kalkanları ve Savunma Durumu',
                 value: [
                     `• **Anti-Nuke (Darbe Kalkanı):** ${guildDb.antiNuke !== false ? '🟢 **AKTİF** *(10sn / 5 silme eşiği)*' : '🔴 **KAPALI**'}`,
-                    `• **Anti-Raid (Baskın Kalkanı):** ${guildDb.antiRaid !== false ? '🟢 **AKTİF** *(≤ 3 günlük hesap karantinası)*' : '🔴 **KAPALI**'}`,
+                    `• **Anti-Raid (Baskın Kalkanı):** ${guildDb.antiRaid !== false ? '🟢 **AKTİF** *(≤ 15 günlük hesap karantinası)*' : '🔴 **KAPALI**'}`,
                     `• **Anti-Bot (İzinsiz Bot Engeli):** ${guildDb.antiBot !== false ? `🟢 **AKTİF** *(+${botWhitelistCount} beyaz listede)*` : '🔴 **KAPALI**'}`,
                     `• **Küfür / Argo Koruması:** ${guildDb.kufurEngel ? `🟢 **AKTİF** *(+${customKufurCount} özel kelime)*` : '🔴 **KAPALI**'}`,
                     `• **Link / Reklam Engeli:** ${guildDb.linkEngel ? '🟢 **AKTİF** *(2 uyarı -> Jail)*' : '🔴 **KAPALI**'}`,
@@ -8233,10 +8233,10 @@ client.on('guildMemberAdd', async member => {
         }
     }
 
-    // Anti-Raid Koruması (Hesap Yaşı 3 Gün veya Daha Düşükse Kısıtla)
+    // Anti-Raid Koruması (Hesap Yaşı 15 Gün veya Daha Düşükse Kısıtla)
     const accountAgeMs = Date.now() - member.user.createdTimestamp;
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    const isSuspiciousNewAccount = accountAgeMs <= threeDaysMs;
+    const fifteenDaysMs = 15 * 24 * 60 * 60 * 1000;
+    const isSuspiciousNewAccount = accountAgeMs <= fifteenDaysMs;
 
     if (isSuspiciousNewAccount && db[guildId].antiRaid !== false) {
         const ageHours = Math.floor(accountAgeMs / (1000 * 60 * 60));
@@ -8249,7 +8249,7 @@ client.on('guildMemberAdd', async member => {
         if (member.manageable) {
             try {
                 // 7 gün zaman aşımı (Timeout)
-                await member.timeout(7 * 24 * 60 * 60 * 1000, 'Anti-Raid: 3 günden yeni hesap koruması');
+                await member.timeout(7 * 24 * 60 * 60 * 1000, 'Anti-Raid: 15 günden yeni hesap koruması');
                 timeoutApplied = true;
             } catch (e) { }
 
@@ -8268,7 +8268,7 @@ client.on('guildMemberAdd', async member => {
                         .setTitle(`🛡️ ${member.guild.name} - Anti-Raid Koruması`)
                         .setDescription(
                             `Merhaba **${member.user.username}**,\n\n` +
-                            `Sunucumuzda aktif olan **Anti-Raid Güvenlik Kalkanı** gereği, açılış tarihi 3 günden yeni olan hesaplar güvenlik amacıyla geçici olarak kısıtlanmaktadır.\n\n` +
+                            `Sunucumuzda aktif olan **Anti-Raid Güvenlik Kalkanı** gereği, açılış tarihi 15 günden yeni olan hesaplar güvenlik amacıyla geçici olarak kısıtlanmaktadır.\n\n` +
                             `• **Hesap Yaşınız:** \`${ageText}\`\n` +
                             `• **Durum:** Sunucuda işlem yapabilmeniz için yetkililerin incelemesi gerekmektedir.`
                         )
@@ -8281,7 +8281,7 @@ client.on('guildMemberAdd', async member => {
         sendLog(member.guild, 'logGuvenlik', {
             title: '🛡️ ANTİ-RAİD: ŞÜPHELİ YENİ HESAP KISITLANDI',
             desc: `**Katılan Üye:** <@${member.id}> (\`${member.user.tag}\`)\n` +
-                `**Hesap Yaşı:** ⏱️ **${ageText}** (3 günden yeni!)\n` +
+                `**Hesap Yaşı:** ⏱️ **${ageText}** (15 günden yeni!)\n` +
                 `**Hesap Açılış:** <t:${Math.floor(member.user.createdTimestamp / 1000)}:F> (<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>)\n` +
                 `**Uygulanan Önlemler:**\n` +
                 `• ${timeoutApplied ? '7 Gün zaman aşımı (Timeout) uygulandı.' : 'Timeout uygulanamadı.'}\n` +

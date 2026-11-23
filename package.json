@@ -1,7 +1,7 @@
 {
   "name": "memur-husnu",
-  "version": "2.1.16",
-  "description": "Memur Hüsnü v2.1.16 - Çift Komut Tekilleştirme ve Temizleme Düzeltmesi",
+  "version": "2.1.17",
+  "description": "Memur Hüsnü v2.1.17 - Anti-Raid Hesap Yaşı Eşiği 15 Güne Yükseltildi",
   "main": "index.js",
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js"
