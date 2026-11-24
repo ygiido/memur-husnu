@@ -3938,12 +3938,15 @@ client.once('ready', async () => {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Sunucularda çift komut görünmesini engellemek için yerel sunucu komutlarını temizle (Sadece tekil global komutlar kalır):
+    // Discord Global komutlarının istemcilerde önbelleğe girmesi 1 saati bulabildiği için,
+    // bağlı olduğu sunuculara da komutları anında yükleyelim (Anında görünür):
     for (const guild of client.guilds.cache.values()) {
         try {
-            await guild.commands.set([]);
-            addLiveLog(`✅ [KOMUT TEKİLLEŞTİRME]: ${guild.name} sunucusundaki yerel kopyalar temizlendi, tekil komutlar aktif.`);
-        } catch (err) { }
+            await guild.commands.set(commands);
+            addLiveLog(`✅ [ANINDA GÜNCELLEME]: ${guild.name} sunucusuna tüm komutlar yüklendi.`);
+        } catch (err) {
+            addLiveLog(`⚠️ [SUNUCU KOMUT YÜKLEME HATASI]: ${guild.name} -> ${err.message}`);
+        }
     }
 });
 
