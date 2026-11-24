@@ -1314,6 +1314,7 @@ setInterval(async () => {
 setInterval(async () => {
     try {
         const now = Date.now();
+        const db = getDB();
         for (const guild of client.guilds.cache.values()) {
             ensureGuildDB(db, guild.id);
             const gDb = db[guild.id];
@@ -2713,7 +2714,7 @@ function buildEtkinlikRolePanel() {
             `💡 *Bu rollerden herhangi birini üzerine alan üyelerimiz etkinlik katılımcısı olarak kaydedilecek ve etkinlik sonunda açılacak özel **Hatıra Rolü** kazanacaktır!*`
         )
         .setColor(0x3498db)
-        .setThumbnail('https://cdn-icons-png.flaticon.com/512/3800/3800024.png')
+        .setImage('https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=900&q=80')
         .setFooter({ text: 'Memur Hüsnü Kış Festivali • Rol seçimi otomatik kaydedilir' })
         .setTimestamp();
 
@@ -5294,12 +5295,10 @@ client.on('interactionCreate', async interaction => {
                     )
                     .setImage(treeData.img)
                     .setColor(0x2ecc71)
-                    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3800/3800024.png')
                     .setFooter({ text: 'Memur Hüsnü Yılbaşı Etkinliği • 8 saatte bir tekrar kullanılabilir' })
                     .setTimestamp();
 
-                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
-                return interaction.editReply({ content: '✅ Yılbaşı ağacını başarıyla süsledin ve +50 XP kazandın!' });
+                return interaction.editReply({ embeds: [embed] });
             }
 
             // 2. /kartopu (1 Saatte bir kartopu fırlatma, %50 isabet şansı)
@@ -5369,8 +5368,7 @@ client.on('interactionCreate', async interaction => {
                         .setFooter({ text: 'Memur Hüsnü Kış Eğlencesi • Kartopu Savaşı' });
                 }
 
-                await interaction.channel.send({ content: `<@${targetUser.id}>`, embeds: [embed] }).catch(() => {});
-                return interaction.editReply({ content: hit ? '🎯 Kartopunu tam hedefe tutturdun!' : '💨 Kartopu hedefin yanından geçip gitti!' });
+                return interaction.editReply({ content: `<@${targetUser.id}>`, embeds: [embed] });
             }
 
             // 3. /yilin-enleri (Yöneticilere özel sunucu ödül töreni)
@@ -5417,8 +5415,7 @@ client.on('interactionCreate', async interaction => {
                     .setFooter({ text: 'Memur Hüsnü Yılın Enleri Töreni • Yeni yılınız kutlu olsun!' })
                     .setTimestamp();
 
-                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
-                return interaction.editReply({ content: '🏆 Yılın Enleri ödül töreni başarıyla kanala gönderildi!' });
+                return interaction.editReply({ embeds: [embed] });
             }
 
             // 4. /piyango (Yılbaşı Milli Piyangosu)
@@ -5592,8 +5589,7 @@ client.on('interactionCreate', async interaction => {
                         .setFooter({ text: 'Memur Hüsnü Milli Piyango Özel Çekilişi' })
                         .setTimestamp();
 
-                    await interaction.channel.send({ embeds: [embed] }).catch(() => {});
-                    return interaction.editReply({ content: '🎉 Çekiliş başarıyla yapıldı ve sonuçlar kanala duyuruldu!' });
+                    return interaction.editReply({ embeds: [embed] });
                 }
             }
 
@@ -5623,8 +5619,7 @@ client.on('interactionCreate', async interaction => {
                     .setFooter({ text: 'Memur Hüsnü XP Hızlandırma Etkinliği' })
                     .setTimestamp();
 
-                await interaction.channel.send({ content: '@everyone', embeds: [embed] }).catch(() => {});
-                return interaction.editReply({ content: `⚡ 2x XP etkinliği **${dakika} dakika** süreyle başlatıldı!` });
+                return interaction.editReply({ content: '@everyone', embeds: [embed] });
             }
 
             // 6. /etkinlik-paneli (Kış temalı eğlence buton rolü paneli)
@@ -5692,8 +5687,7 @@ client.on('interactionCreate', async interaction => {
                     .setFooter({ text: 'Memur Hüsnü Kış Festivali Hatıra Dağıtımı' })
                     .setTimestamp();
 
-                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
-                return interaction.editReply({ content: `🎖️ ${targetRole} rolü başarıyla **${basarili}** katılımcıya tanımlandı!` });
+                return interaction.editReply({ embeds: [embed] });
             }
         }
 
