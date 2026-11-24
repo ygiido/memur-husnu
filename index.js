@@ -252,7 +252,7 @@ const server = http.createServer((req, res) => {
     const wsText = wsStatusMap[wsCode] || (wsCode !== null ? `Kod: ${wsCode}` : 'Bilinmiyor');
 
     const statusData = {
-        versiyon: 'v2.1.17',
+        versiyon: 'v2.1.18',
         durum: isBotReady ? 'ONLINE (Çevrimiçi)' : 'BEKLENİYOR / KESİK',
         botIsmi: client && client.user ? client.user.tag : 'Giriş Yapılmadı',
         discordWebsocketDurumu: wsText,
@@ -451,6 +451,10 @@ function ensureGuildDB(db, guildId) {
     if (db[guildId].xpEnabled === undefined) db[guildId].xpEnabled = true;
     if (db[guildId].gamesEnabled === undefined) db[guildId].gamesEnabled = true;
     if (db[guildId].otoRol === undefined) db[guildId].otoRol = null;
+    if (!db[guildId].yilbasiAgac) db[guildId].yilbasiAgac = { level: 1, exp: 0, totalGelistirme: 0 };
+    if (!db[guildId].piyango) db[guildId].piyango = { aktif: true, biletFiyati: 100, biletler: {} };
+    if (!Array.isArray(db[guildId].etkinlikRolSahipleri)) db[guildId].etkinlikRolSahipleri = [];
+    if (db[guildId].doubleXpUntil === undefined) db[guildId].doubleXpUntil = 0;
     if (db[guildId].kickKanal && !db[guildId].duyuruKanal) {
         db[guildId].duyuruKanal = db[guildId].kickKanal;
         delete db[guildId].kickKanal;
@@ -1265,6 +1269,12 @@ setInterval(async () => {
                 userData.lastVoiceXp = nowTime;
                 let voiceXp = Math.floor(Math.random() * 11) + 10;
                 if (vs.streaming || vs.selfVideo) voiceXp = Math.floor(voiceXp * 1.5);
+
+                // 2X Çift XP Etkinliği Kontrolü
+                if (db[guild.id]?.doubleXpUntil && db[guild.id].doubleXpUntil > nowTime) {
+                    voiceXp *= 2;
+                }
+
                 userData.xp += voiceXp;
                 dbUpdated = true;
             }
@@ -1297,6 +1307,65 @@ setInterval(async () => {
 
     if (dbUpdated) saveDB(db);
 }, 30000);
+
+// ============================================================================
+// GÜNLÜK RASTGELE 2X ÇİFT XP ETKİNLİK MOTORU (GÜNDE 1-2 KEZ SÜRPRİZ XP SAATİ)
+// ============================================================================
+setInterval(async () => {
+    try {
+        const now = Date.now();
+        for (const guild of client.guilds.cache.values()) {
+            ensureGuildDB(db, guild.id);
+            const gDb = db[guild.id];
+            if (!gDb.xpEnabled) continue;
+
+            // Eğer şu an aktif bir çift XP etkinliği varsa geç
+            if (gDb.doubleXpUntil && gDb.doubleXpUntil > now) continue;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (gDb.lastRandomXpDay !== todayStr) {
+                gDb.lastRandomXpDay = todayStr;
+                gDb.randomXpTodayCount = 0;
+            }
+
+            // Günde en fazla 2 kez rastgele tetiklensin
+            if ((gDb.randomXpTodayCount || 0) >= 2) continue;
+
+            // Her 15 dakikada bir %12 şansla rastgele 30 dakikalık 2x XP başlasın
+            if (Math.random() < 0.12) {
+                const durationMinutes = 30;
+                const bitis = now + (durationMinutes * 60 * 1000);
+                gDb.doubleXpUntil = bitis;
+                gDb.randomXpTodayCount = (gDb.randomXpTodayCount || 0) + 1;
+                saveDB(db);
+
+                // Duyuru kanalını veya sistem kanalını bulup duyur
+                const targetChannel = (gDb.duyuruKanal && guild.channels.cache.get(gDb.duyuruKanal)) ||
+                    guild.systemChannel ||
+                    guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages));
+
+                if (targetChannel) {
+                    const embed = new EmbedBuilder()
+                        .setTitle('⚡ SÜRPRİZ 2X ÇİFT XP SAATİ BAŞLADI! ⚡')
+                        .setDescription(
+                            `🎉 **Kış Şanslı Saati Geldi!**\n\n` +
+                            `Önümüzdeki **${durationMinutes} dakika** boyunca sunucuda sohbette yazılan tüm mesajlar ve seste durulan tüm dakikalar **2 KAT DAHA FAZLA XP** kazandırıyor! 🚀🔥\n\n` +
+                            `⏳ **Bitiş:** <t:${Math.floor(bitis / 1000)}:R>\n\n` +
+                            `*Bu fırsatı kaçırma, sohbete ve odalara koş!* 🎙️💬`
+                        )
+                        .setColor(0xe74c3c)
+                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/3176/3176298.png')
+                        .setFooter({ text: 'Memur Hüsnü Otomatik Sürpriz XP Etkinliği' })
+                        .setTimestamp();
+
+                    targetChannel.send({ embeds: [embed] }).catch(() => {});
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Otomatik Sürpriz XP Etkinliği hatası:', err);
+    }
+}, 15 * 60 * 1000); // 15 dakikada bir kontrol et
 
 // ============================================================================
 // GELİŞMİŞ KÜFÜR VE ARGO TESPİT MOTORU (ANTI-BYPASS & BAĞLAM KORUMALI)
@@ -2593,10 +2662,78 @@ function buildButtonRoleDashboard(guild, guildDb, selectedChId = null, alertMsg 
     return { content: '', embeds: [embed], components };
 }
 
+// ============================================================================
+// YILBAŞI VE KIŞ ETKİNLİKLERİ MOTORU (AĞAÇ, PİYANGO, KARTOPU, ETKİNLİK ROLLERİ)
+// ============================================================================
+function getYilbasiAgacData(total = 0) {
+    const levels = [
+        { level: 1, title: 'Yeni Dikilmiş Kış Fidanı 🌱', min: 0, max: 25, img: 'https://images.unsplash.com/photo-1543257580-7269da773bf5?w=500&q=80' },
+        { level: 2, title: 'Büyüyen Kar Çamı 🌲', min: 25, max: 70, img: 'https://images.unsplash.com/photo-1512474932049-78ac69ede12c?w=500&q=80' },
+        { level: 3, title: 'Işıklandırılmış Yılbaşı Çamı ✨', min: 70, max: 150, img: 'https://images.unsplash.com/photo-1513297887119-d46091b24bfa?w=500&q=80' },
+        { level: 4, title: 'Süslü & Parıltılı Yılbaşı Ağacı 🎄', min: 150, max: 300, img: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=500&q=80' },
+        { level: 5, title: 'Efsanevi Krallık Yılbaşı Ağacı ⭐', min: 300, max: 300, img: 'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?w=500&q=80' }
+    ];
+
+    for (let i = 0; i < levels.length; i++) {
+        if (total < levels[i].max || i === levels.length - 1) {
+            const currentLvl = levels[i];
+            const needed = currentLvl.max - currentLvl.min;
+            const progress = total - currentLvl.min;
+            const percent = currentLvl.level === 5 ? 100 : Math.min(100, Math.floor((progress / Math.max(1, needed)) * 100));
+            const filled = Math.min(10, Math.floor(percent / 10));
+            const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+            return {
+                ...currentLvl,
+                percent,
+                bar,
+                nextNeed: currentLvl.level === 5 ? 0 : (currentLvl.max - total)
+            };
+        }
+    }
+}
+
+const ETKINLIK_ROLLER_CONFIG = [
+    { id: 'btn_ev_kardanadam', roleName: '⛄ Kardan Adam', color: '#00ffff' },
+    { id: 'btn_ev_geyik', roleName: '🦌 Kutup Geyiği', color: '#e67e22' },
+    { id: 'btn_ev_noel', roleName: '🎅 Noel Şapkası', color: '#e74c3c' },
+    { id: 'btn_ev_kartanesi', roleName: '❄️ Kar Tanesi', color: '#ecf0f1' },
+    { id: 'btn_ev_sicakcikolata', roleName: '☕ Sıcak Çikolata', color: '#964B00' }
+];
+
+function buildEtkinlikRolePanel() {
+    const embed = new EmbedBuilder()
+        .setTitle('❄️ Memur Hüsnü Kış Festivali — Eğlence Rolleri')
+        .setDescription(
+            `Aralık ayı boyunca sunucumuzu renklendirecek eğlenceli kış rollerini aşağıdaki butonlara tıklayarak üzerinize alabilir veya tekrar tıklayarak çıkarabilirsiniz!\n\n` +
+            `⛄ **Kardan Adam**\n` +
+            `🦌 **Kutup Geyiği**\n` +
+            `🎅 **Noel Şapkası**\n` +
+            `❄️ **Kar Tanesi**\n` +
+            `☕ **Sıcak Çikolata**\n\n` +
+            `💡 *Bu rollerden herhangi birini üzerine alan üyelerimiz etkinlik katılımcısı olarak kaydedilecek ve etkinlik sonunda açılacak özel **Hatıra Rolü** kazanacaktır!*`
+        )
+        .setColor(0x3498db)
+        .setThumbnail('https://cdn-icons-png.flaticon.com/512/3800/3800024.png')
+        .setFooter({ text: 'Memur Hüsnü Kış Festivali • Rol seçimi otomatik kaydedilir' })
+        .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_ev_kardanadam').setLabel('Kardan Adam').setEmoji('⛄').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_ev_geyik').setLabel('Kutup Geyiği').setEmoji('🦌').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_ev_noel').setLabel('Noel Şapkası').setEmoji('🎅').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('btn_ev_kartanesi').setLabel('Kar Tanesi').setEmoji('❄️').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('btn_ev_sicakcikolata').setLabel('Sıcak Çikolata').setEmoji('☕').setStyle(ButtonStyle.Secondary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
 function buildMarketView(guild, guildDb, user) {
     const uData = (guildDb.users && guildDb.users[user.id]) || {};
     const userPapel = uData.papel || 0;
     const marketRoles = guildDb.marketRoles || [];
+    const hasTicket = Boolean(guildDb.piyango?.biletler?.[user.id]);
+    const ticketNo = hasTicket ? guildDb.piyango.biletler[user.id].no : null;
 
     const selectOptions = [];
     let marketListing = '';
@@ -2626,12 +2763,19 @@ function buildMarketView(guild, guildDb, user) {
         }).join('\n\n');
     }
 
+    const ticketStatusText = hasTicket
+        ? `🎟️ **Piyango Biletiniz:** \`#${ticketNo}\` *(Alındı)* ✅`
+        : `🎟️ **Milli Piyango Bileti:** \`100 Papel\` *(Aşağıdaki butondan satın alabilirsiniz)*`;
+
     const embed = new EmbedBuilder()
         .setAuthor({ name: `${guild.name} • Resmi Papel Marketi`, iconURL: guild.iconURL({ dynamic: true }) || undefined })
         .setTitle('🏪 Sunucu Mağazası & Rol Satın Alım Noktası')
         .setColor(0x5865F2)
         .setDescription(
             `💳 **Mevcut Bakiyeniz:** \`${userPapel.toLocaleString('tr-TR')} Papel\` 💵\n\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `### 🎟️ 2025 Yılbaşı Özel Ürünü\n` +
+            `> ${ticketStatusText}\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
             `### 🛍️ Satışta Olan Roller & Ayrıcalıklar\n\n` +
             `${marketListing}\n\n` +
@@ -2657,7 +2801,8 @@ function buildMarketView(guild, guildDb, user) {
     components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_market_my_profile').setLabel('Profilim').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('btn_open_market_view').setLabel('Yenile').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('btn_profile_how_it_works').setLabel('Nasıl Papel Kazanılır?').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('btn_profile_how_it_works').setLabel('Nasıl Papel Kazanılır?').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_market_buy_lottery').setLabel(hasTicket ? 'Biletim: #' + ticketNo : '🎟️ Piyango Bileti Al (100 Papel)').setStyle(hasTicket ? ButtonStyle.Secondary : ButtonStyle.Danger).setDisabled(hasTicket)
     ));
 
     return { embeds: [embed], components, ephemeral: true };
@@ -3722,6 +3867,64 @@ client.once('ready', async () => {
                     description: 'Sunucudaki kurulu buton rol panellerini listeler.',
                     type: 1
                 }
+            ]
+        },
+        {
+            name: 'agac',
+            description: 'Sunucunun Yılbaşı Ağacını geliştirir ve XP kazandırır (8 saatte bir).'
+        },
+        {
+            name: 'kartopu',
+            description: 'Bir kullanıcıya kartopu fırlatır (1 saatte bir).',
+            options: [
+                { name: 'kullanici', type: 6, description: 'Kartopu fırlatılacak kullanıcıyı seçin', required: true }
+            ]
+        },
+        {
+            name: 'yilin-enleri',
+            description: 'Sunucunun mesaj, ses, seviye ve ekonomi liderlerini açıklar (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString()
+        },
+        {
+            name: 'piyango',
+            description: 'Yılbaşı piyango bileti satın alma, görüntüleme ve çekiliş sistemi.',
+            options: [
+                {
+                    name: 'islem',
+                    type: 3,
+                    description: 'Yapılacak işlemi seçin',
+                    required: true,
+                    choices: [
+                        { name: 'Bilet Satın Al (100 Papel - Kişi Başı 1 Bilet)', value: 'al' },
+                        { name: 'Biletimi Görüntüle', value: 'bilet' },
+                        { name: 'Katılımcı ve Bilet Durumu', value: 'liste' },
+                        { name: 'Piyango Çekilişini Yap (Sadece Yöneticiler)', value: 'cek' }
+                    ]
+                }
+            ]
+        },
+        {
+            name: 'cift-xp-baslat',
+            description: 'Sunucuda anlık 2x XP etkinliği başlatır (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString(),
+            options: [
+                { name: 'dakika', type: 4, description: 'Etkinlik süresi (Dakika, varsayılan: 30)', required: false }
+            ]
+        },
+        {
+            name: 'etkinlik-paneli',
+            description: 'Kış temalı eğlence buton rolü panelini kanala gönderir (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString(),
+            options: [
+                { name: 'kanal', type: 7, description: 'Panelin gönderileceği metin kanalı (Boş bırakılırsa bulunduğunuz kanal)', required: false }
+            ]
+        },
+        {
+            name: 'hatira-rolu-ver',
+            description: 'Etkinlik buton rollerini alan tüm katılımcılara Hatıra Rolü tanımlar (Sadece Yöneticiler).',
+            default_member_permissions: PermissionsBitField.Flags.Administrator.toString(),
+            options: [
+                { name: 'rol', type: 8, description: 'Tüm katılımcılara dağıtılacak Hatıra Rolü', required: true }
             ]
         }
     ];
@@ -5035,6 +5238,460 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 return interaction.editReply(buildRadioView(interaction.guild, voiceChannel.id));
+            }
+
+            // ============================================================================
+            // YILBAŞI & KIŞ ETKİNLİĞİ KOMUTLARI
+            // ============================================================================
+
+            // 1. /agac (8 Saatte bir sunucu ağacını büyütme)
+            if (commandName === 'agac') {
+                ensureGuildDB(db, guildId);
+                const uData = db[guildId].users[interaction.user.id];
+                const now = Date.now();
+                const COOLDOWN_8H = 8 * 60 * 60 * 1000;
+
+                if (uData.lastAgac && (now - uData.lastAgac < COOLDOWN_8H)) {
+                    const kalanMs = COOLDOWN_8H - (now - uData.lastAgac);
+                    const kalanSaat = Math.floor(kalanMs / (60 * 60 * 1000));
+                    const kalanDakika = Math.floor((kalanMs % (60 * 60 * 1000)) / (60 * 1000));
+                    return interaction.editReply({
+                        content: `⏳ Ağacı henüz yeni süsledin! Tekrar süsleyip geliştirmek için **${kalanSaat} saat ${kalanDakika} dakika** beklemelisin.`
+                    });
+                }
+
+                uData.lastAgac = now;
+                db[guildId].yilbasiAgac.totalGelistirme = (db[guildId].yilbasiAgac.totalGelistirme || 0) + 1;
+                
+                // +50 XP Ödülü
+                const bonusXp = 50;
+                uData.xp = (uData.xp || 0) + bonusXp;
+
+                // Seviye atlama kontrolü
+                const newLvl = calculateLevel(uData.xp);
+                if (newLvl > (uData.level || 0)) {
+                    uData.level = newLvl;
+                    const roleId = db[guildId]?.levelRoles?.[String(newLvl)];
+                    if (roleId) interaction.member?.roles.add(roleId).catch(() => {});
+                }
+
+                saveDB(db);
+
+                const treeData = getYilbasiAgacData(db[guildId].yilbasiAgac.totalGelistirme);
+                const nextInfo = treeData.level === 5 ? 'Ağaç maksimum seviyeye ulaştı! ⭐' : `Bir sonraki aşama için son **${treeData.nextNeed}** süsleme kaldı!`;
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🎄 Sunucu Yılbaşı Ağacı Geliştirildi!')
+                    .setDescription(
+                        `Harika bir iş çıkardın <@${interaction.user.id}>! Ağaca bir süs ekledin ve ışıklarını parlattın. ✨\n\n` +
+                        `🌟 **Ağacın Durumu:** **${treeData.title}** (Seviye ${treeData.level}/5)\n` +
+                        `📊 **İlerleme:** \`[${treeData.bar}] %${treeData.percent}\`\n` +
+                        `🎯 **Toplam Süsleme:** \`${db[guildId].yilbasiAgac.totalGelistirme} kez\`\n` +
+                        `🔔 **Aşama Durumu:** ${nextInfo}\n\n` +
+                        `🎁 **Kazanılan Ödül:** \`+${bonusXp} XP\` hesabına tanımlandı!`
+                    )
+                    .setImage(treeData.img)
+                    .setColor(0x2ecc71)
+                    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3800/3800024.png')
+                    .setFooter({ text: 'Memur Hüsnü Yılbaşı Etkinliği • 8 saatte bir tekrar kullanılabilir' })
+                    .setTimestamp();
+
+                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
+                return interaction.editReply({ content: '✅ Yılbaşı ağacını başarıyla süsledin ve +50 XP kazandın!' });
+            }
+
+            // 2. /kartopu (1 Saatte bir kartopu fırlatma, %50 isabet şansı)
+            if (commandName === 'kartopu') {
+                ensureGuildDB(db, guildId);
+                const targetUser = interaction.options.getUser('kullanici', true);
+
+                if (targetUser.id === interaction.user.id) {
+                    return interaction.editReply({ content: '😅 Kendine kartopu fırlatamazsın! Bir arkadaşını seç.' });
+                }
+
+                if (targetUser.bot) {
+                    return interaction.editReply({ content: '🤖 Botlara kartopu atamazsın, devreleri donabilir!' });
+                }
+
+                const uData = db[guildId].users[interaction.user.id];
+                const now = Date.now();
+                const COOLDOWN_1H = 60 * 60 * 1000;
+
+                if (uData.lastKartopu && (now - uData.lastKartopu < COOLDOWN_1H)) {
+                    const kalanMs = COOLDOWN_1H - (now - uData.lastKartopu);
+                    const kalanDakika = Math.ceil(kalanMs / (60 * 1000));
+                    return interaction.editReply({
+                        content: `⏳ Parmakların donmuş! Yeni bir kartopu yuvarlayıp fırlatmak için **${kalanDakika} dakika** beklemelisin.`
+                    });
+                }
+
+                uData.lastKartopu = now;
+                const hit = Math.random() < 0.5;
+
+                // İstatistik takibi
+                if (!uData.kartopuStats) uData.kartopuStats = { atilan: 0, isabet: 0, vuruldu: 0 };
+                uData.kartopuStats.atilan += 1;
+                if (hit) uData.kartopuStats.isabet += 1;
+
+                const tData = db[guildId].users[targetUser.id];
+                if (tData) {
+                    if (!tData.kartopuStats) tData.kartopuStats = { atilan: 0, isabet: 0, vuruldu: 0 };
+                    if (hit) tData.kartopuStats.vuruldu += 1;
+                }
+
+                saveDB(db);
+
+                const embed = new EmbedBuilder().setTimestamp();
+
+                if (hit) {
+                    embed
+                        .setTitle('💥 ŞRAAAK! Tam İsabet!')
+                        .setDescription(
+                            `❄️ <@${interaction.user.id}> sertçe sıktığı buz gibi bir kartopunu fırlattı ve <@${targetUser.id}>'ın tam alnının çatına yapıştırdı! 🎯\n\n` +
+                            `🧣 <@${targetUser.id}> burnundaki karları temizlemeye çalışırken herkes kahkahalara boğuldu! 😂\n\n` +
+                            `📊 *${interaction.user.username} İstatistiği: ${uData.kartopuStats.isabet}/${uData.kartopuStats.atilan} İsabet*`
+                        )
+                        .setColor(0x3498db)
+                        .setImage('https://media.giphy.com/media/d2YWTOsVtuHgOHhC/giphy.gif')
+                        .setFooter({ text: 'Memur Hüsnü Kış Eğlencesi • Kartopu Savaşı' });
+                } else {
+                    embed
+                        .setTitle('💨 VUUUŞ! Iskaladı!')
+                        .setDescription(
+                            `❄️ <@${interaction.user.id}> bütün gücüyle bir kartopu savurdu ama <@${targetUser.id}> son anda eğilerek sıyrıldı! 🧤\n\n` +
+                            `Kartopu arkadaki çam ağacına çarpıp darmadağın oldu! Bir dahaki sefere daha iyi nişan al! 😜\n\n` +
+                            `📊 *${interaction.user.username} İstatistiği: ${uData.kartopuStats.isabet}/${uData.kartopuStats.atilan} İsabet*`
+                        )
+                        .setColor(0x95a5a6)
+                        .setImage('https://media.giphy.com/media/3o7TKLdtkCqQeWb4pG/giphy.gif')
+                        .setFooter({ text: 'Memur Hüsnü Kış Eğlencesi • Kartopu Savaşı' });
+                }
+
+                await interaction.channel.send({ content: `<@${targetUser.id}>`, embeds: [embed] }).catch(() => {});
+                return interaction.editReply({ content: hit ? '🎯 Kartopunu tam hedefe tutturdun!' : '💨 Kartopu hedefin yanından geçip gitti!' });
+            }
+
+            // 3. /yilin-enleri (Yöneticilere özel sunucu ödül töreni)
+            if (commandName === 'yilin-enleri') {
+                if (!isAdmin) {
+                    return interaction.editReply({ content: '❌ Bu prestijli komutu yalnızca Sunucu Yöneticileri kullanabilir.' });
+                }
+
+                ensureGuildDB(db, guildId);
+                const allUsers = Object.entries(db[guildId].users || {})
+                    .filter(([uid]) => !client.users.cache.get(uid)?.bot);
+
+                // Sıralamalar
+                const topMessages = [...allUsers].sort((a, b) => (b[1].msgCount || 0) - (a[1].msgCount || 0)).slice(0, 3);
+                const topXp = [...allUsers].sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0)).slice(0, 3);
+                const topPapel = [...allUsers].sort((a, b) => (b[1].papel || 0) - (a[1].papel || 0)).slice(0, 3);
+                const topJail = [...allUsers].sort((a, b) => (b[1].jailCount || 0) - (a[1].jailCount || 0)).filter(([_, u]) => (u.jailCount || 0) > 0).slice(0, 3);
+
+                const formatList = (list, valFn, unit) => {
+                    if (!list.length) return '> *Veri bulunmuyor.*';
+                    return list.map(([uid, u], idx) => {
+                        const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
+                        return `> ${medal} <@${uid}> — **${valFn(u).toLocaleString('tr-TR')}** ${unit}`;
+                    }).join('\n');
+                };
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🏆 Memur Hüsnü — 2025 Yılının Enleri Ödül Töreni 🌟')
+                    .setDescription(
+                        `Geride bıraktığımız koskoca bir yılda sunucumuzun en aktif, en çalışkan, en zengin ve en haylaz üyelerini gururla takdim ediyoruz! 🥂🎉\n\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `### 💬 Yılın En Çenebazları (En Çok Mesaj)\n` +
+                        `${formatList(topMessages, u => u.msgCount || 0, 'mesaj')}\n\n` +
+                        `### 🎖️ Yılın En Kıdemlileri (En Yüksek XP & Seviye)\n` +
+                        `${formatList(topXp, u => u.xp || 0, 'XP')}\n\n` +
+                        `### 💰 Yılın En Zenginleri (En Çok Papel)\n` +
+                        `${formatList(topPapel, u => u.papel || 0, 'Papel 💵')}\n\n` +
+                        `### ⛓️ Yılın En Haylazları & Koğuş Ağaları (En Çok Hapis)\n` +
+                        `${formatList(topJail, u => u.jailCount || 0, 'kez hapis')}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+                    )
+                    .setColor(0xf1c40f)
+                    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3176/3176363.png')
+                    .setFooter({ text: 'Memur Hüsnü Yılın Enleri Töreni • Yeni yılınız kutlu olsun!' })
+                    .setTimestamp();
+
+                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
+                return interaction.editReply({ content: '🏆 Yılın Enleri ödül töreni başarıyla kanala gönderildi!' });
+            }
+
+            // 4. /piyango (Yılbaşı Milli Piyangosu)
+            if (commandName === 'piyango') {
+                ensureGuildDB(db, guildId);
+                const islem = interaction.options.getString('islem', true);
+                const piyango = db[guildId].piyango;
+
+                if (islem === 'al') {
+                    const uData = db[guildId].users[interaction.user.id];
+                    if (piyango.biletler[interaction.user.id]) {
+                        return interaction.editReply({
+                            content: `🎟️ Zaten bir biletiniz var! Bilet Numaranız: **#${piyango.biletler[interaction.user.id]}**\n*(Adil şans için kişi başı en fazla 1 bilet alınabilir.)*`
+                        });
+                    }
+
+                    if ((uData.papel || 0) < 100) {
+                        return interaction.editReply({
+                            content: `❌ Piyango bileti **100 Papel** değerindedir. Mevcut bakiyeniz: \`${(uData.papel || 0)} Papel\`.\n💡 *Sohbet ederek veya seste vakit geçirerek papel biriktirebilirsiniz.*`
+                        });
+                    }
+
+                    // 100 Papel düş ve 6 haneli benzersiz bilet oluştur
+                    uData.papel -= 100;
+                    let ticketNo;
+                    do {
+                        ticketNo = String(Math.floor(100000 + Math.random() * 900000));
+                    } while (Object.values(piyango.biletler).includes(ticketNo));
+
+                    piyango.biletler[interaction.user.id] = ticketNo;
+                    saveDB(db);
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎟️ Yılbaşı Özel Piyango Biletiniz Kesildi!')
+                        .setDescription(
+                            `Tebrikler <@${interaction.user.id}>! Büyük yılbaşı çekilişinde yerinizi aldınız. 🎉\n\n` +
+                            `🎫 **Şanslı Bilet Numaranız:** \`#${ticketNo}\`\n` +
+                            `💰 **Ödenen Tutar:** \`100 Papel\`\n` +
+                            `👥 **Toplam Katılımcı:** \`${Object.keys(piyango.biletler).length} Kişi\`\n` +
+                            `🏆 **Mevcut İkramiye Havuzu:** \`${Object.keys(piyango.biletler).length * 100} Papel\`\n\n` +
+                            `*Çekiliş yılbaşı gecesi yetkililer tarafından gerçekleştirilecektir. Bol şanslar!* 🍀`
+                        )
+                        .setColor(0x2ecc71)
+                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/2534/2534204.png')
+                        .setFooter({ text: 'Memur Hüsnü Milli Piyango İdaresi' })
+                        .setTimestamp();
+
+                    return interaction.editReply({ embeds: [embed] });
+                }
+
+                if (islem === 'bilet') {
+                    const ticketNo = piyango.biletler[interaction.user.id];
+                    if (!ticketNo) {
+                        return interaction.editReply({
+                            content: `❌ Henüz bir piyango biletiniz bulunmuyor!\n💡 \`/piyango islem:al\` komutuyla veya \`/market\` üzerinden **100 Papel** karşılığında biletinizi hemen alabilirsiniz.`
+                        });
+                    }
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎫 Yılbaşı Piyango Biletiniz')
+                        .setDescription(
+                            `Sayın <@${interaction.user.id}>,\n\n` +
+                            `🎫 **Bilet Numaranız:** \`#${ticketNo}\`\n` +
+                            `🏆 **Toplam Katılımcı Sayısı:** \`${Object.keys(piyango.biletler).length} Kişi\`\n` +
+                            `💰 **Toplam İkramiye Havuzu:** \`${Object.keys(piyango.biletler).length * 100} Papel\`\n\n` +
+                            `*Çekiliş sonuçları açıklandığında bilet numaranızın eşleşmesi halinde ikramiyeniz doğrudan hesabınıza aktarılacaktır.*`
+                        )
+                        .setColor(0x3498db)
+                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/2534/2534204.png')
+                        .setFooter({ text: 'Memur Hüsnü Milli Piyango İdaresi' });
+
+                    return interaction.editReply({ embeds: [embed] });
+                }
+
+                if (islem === 'liste') {
+                    const entries = Object.entries(piyango.biletler);
+                    const totalHavuz = entries.length * 100;
+
+                    let listStr = entries.slice(0, 25).map(([uid, tNo]) => `> • <@${uid}> ➔ Bilet: \`#${tNo}\``).join('\n');
+                    if (entries.length > 25) listStr += `\n> *...ve ${entries.length - 25} kişi daha.*`;
+                    if (!entries.length) listStr = '> *Henüz hiç bilet satılmadı. İlk bileti sen al!*';
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎟️ Yılbaşı Piyangosu — Katılımcı Tablosu')
+                        .setDescription(
+                            `💰 **Toplam Bilet:** \`${entries.length} Adet\`\n` +
+                            `💎 **Büyük İkramiye Havuzu:** \`${totalHavuz.toLocaleString('tr-TR')} Papel\`\n\n` +
+                            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                            `### Katılımcı Listesi:\n${listStr}`
+                        )
+                        .setColor(0x9b59b6)
+                        .setFooter({ text: 'Bilet fiyatı 100 Papel • /piyango islem:al' })
+                        .setTimestamp();
+
+                    return interaction.editReply({ embeds: [embed] });
+                }
+
+                if (islem === 'cek') {
+                    if (!isAdmin) {
+                        return interaction.editReply({ content: '❌ Piyango çekilişini yalnızca Sunucu Yöneticileri başlatabilir.' });
+                    }
+
+                    const entries = Object.entries(piyango.biletler);
+                    if (entries.length < 2) {
+                        return interaction.editReply({
+                            content: `❌ Çekiliş yapabilmek için havuzda en az **2 katılımcı** olmalıdır. Şu anki bilet sayısı: \`${entries.length}\`.`
+                        });
+                    }
+
+                    // Havuz ve Dağıtım:
+                    // 1. Büyük İkramiye: %60
+                    // 2. İkinci İkramiye: %30
+                    // Amorti (Son hanesi tutanlara bilet iadesi 100 Papel)
+                    const totalHavuz = entries.length * 100;
+                    const grandPrize = Math.floor(totalHavuz * 0.60);
+                    const secondPrize = Math.floor(totalHavuz * 0.30);
+
+                    // Kazananları rastgele belirle
+                    const shuffled = [...entries].sort(() => 0.5 - Math.random());
+                    const [grandWinnerId, grandTicket] = shuffled[0];
+                    const [secondWinnerId, secondTicket] = shuffled[1];
+
+                    // Amorti rakamı (0-9 arası bir rakam)
+                    const amortiDigit = grandTicket.slice(-1);
+                    const amortiWinners = entries.filter(([uid, t]) => t.slice(-1) === amortiDigit && uid !== grandWinnerId && uid !== secondWinnerId);
+
+                    // Kazançları tanımla
+                    if (!db[guildId].users[grandWinnerId]) db[guildId].users[grandWinnerId] = { papel: 0 };
+                    db[guildId].users[grandWinnerId].papel = (db[guildId].users[grandWinnerId].papel || 0) + grandPrize;
+
+                    if (!db[guildId].users[secondWinnerId]) db[guildId].users[secondWinnerId] = { papel: 0 };
+                    db[guildId].users[secondWinnerId].papel = (db[guildId].users[secondWinnerId].papel || 0) + secondPrize;
+
+                    for (const [aUid] of amortiWinners) {
+                        if (!db[guildId].users[aUid]) db[guildId].users[aUid] = { papel: 0 };
+                        db[guildId].users[aUid].papel = (db[guildId].users[aUid].papel || 0) + 100;
+                    }
+
+                    // Piyango biletlerini sıfırla / sonlandır
+                    db[guildId].piyango.sonCekilis = {
+                        tarih: new Date().toISOString(),
+                        grandWinnerId, grandTicket, grandPrize,
+                        secondWinnerId, secondTicket, secondPrize,
+                        amortiDigit, amortiCount: amortiWinners.length
+                    };
+                    db[guildId].piyango.biletler = {};
+                    saveDB(db);
+
+                    const amortiText = amortiWinners.length > 0
+                        ? amortiWinners.map(([uid]) => `<@${uid}>`).join(', ')
+                        : '*Kimseye denk gelmedi.*';
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎉 BÜYÜK YILBAŞI PİYANGO ÇEKİLİŞİ TAMAMLANDI! 🎆')
+                        .setDescription(
+                            `Beklenen an geldi! Noter huzurunda ve Memur Hüsnü gözetiminde yapılan çekiliş sonuçları belli oldu! 🥂🎊\n\n` +
+                            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                            `### 🥇 BÜYÜK İKRAMİYE KAZANANI (%60)\n` +
+                            `> 👑 <@${grandWinnerId}> — Bilet: **#${grandTicket}**\n` +
+                            `> 💰 **Kazanılan:** \`${grandPrize.toLocaleString('tr-TR')} Papel\` 💵\n\n` +
+                            `### 🥈 İKİNCİ BÜYÜK İKRAMİYE (%30)\n` +
+                            `> 🌟 <@${secondWinnerId}> — Bilet: **#${secondTicket}**\n` +
+                            `> 💰 **Kazanılan:** \`${secondPrize.toLocaleString('tr-TR')} Papel\` 💵\n\n` +
+                            `### 🎟️ AMORTİ KAZANANLARI (Son Hanesi '${amortiDigit}' Olanlar - 100 Papel İade)\n` +
+                            `> ${amortiText}\n` +
+                            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                            `✨ *Kazanılan tüm ikramiyeler hesaplara anında yüklenmiştir. Katılan herkese teşekkür eder, mutlu yıllar dileriz!*`
+                        )
+                        .setColor(0xf1c40f)
+                        .setImage('https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif')
+                        .setFooter({ text: 'Memur Hüsnü Milli Piyango Özel Çekilişi' })
+                        .setTimestamp();
+
+                    await interaction.channel.send({ embeds: [embed] }).catch(() => {});
+                    return interaction.editReply({ content: '🎉 Çekiliş başarıyla yapıldı ve sonuçlar kanala duyuruldu!' });
+                }
+            }
+
+            // 5. /cift-xp-baslat (Yöneticilere özel anlık 2x XP etkinliği)
+            if (commandName === 'cift-xp-baslat') {
+                if (!isAdmin) {
+                    return interaction.editReply({ content: '❌ Bu komutu yalnızca Sunucu Yöneticileri kullanabilir.' });
+                }
+
+                ensureGuildDB(db, guildId);
+                const dakika = interaction.options.getInteger('dakika') || 30;
+                const bitis = Date.now() + (dakika * 60 * 1000);
+
+                db[guildId].doubleXpUntil = bitis;
+                saveDB(db);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('⚡ 2X ÇİFT XP ETKİNLİĞİ BAŞLADI! ⚡')
+                    .setDescription(
+                        `📢 **DİKKAT TÜM SUNUCU!**\n\n` +
+                        `Önümüzdeki **${dakika} dakika** boyunca sunucuda gönderilen tüm mesajlar ve seste geçirilen tüm dakikalar **2 KAT DAHA FAZLA XP** kazandıracak! 🚀\n\n` +
+                        `⏳ **Bitiş Zamanı:** <t:${Math.floor(bitis / 1000)}:R> (<t:${Math.floor(bitis / 1000)}:t>)\n\n` +
+                        `*Hemen sohbete ve ses odalarına akın edin, seviyenizi katlayın!* 🎙️💬`
+                    )
+                    .setColor(0xe74c3c)
+                    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3176/3176298.png')
+                    .setFooter({ text: 'Memur Hüsnü XP Hızlandırma Etkinliği' })
+                    .setTimestamp();
+
+                await interaction.channel.send({ content: '@everyone', embeds: [embed] }).catch(() => {});
+                return interaction.editReply({ content: `⚡ 2x XP etkinliği **${dakika} dakika** süreyle başlatıldı!` });
+            }
+
+            // 6. /etkinlik-paneli (Kış temalı eğlence buton rolü paneli)
+            if (commandName === 'etkinlik-paneli') {
+                if (!isAdmin) {
+                    return interaction.editReply({ content: '❌ Bu komutu yalnızca Sunucu Yöneticileri kullanabilir.' });
+                }
+
+                const targetChannel = interaction.options.getChannel('kanal') || interaction.channel;
+                if (!targetChannel || !targetChannel.isTextBased()) {
+                    return interaction.editReply({ content: '❌ Lütfen geçerli bir metin kanalı belirtin.' });
+                }
+
+                const panelData = buildEtkinlikRolePanel();
+                await targetChannel.send(panelData);
+                return interaction.editReply({ content: `❄️ Kış Festivali eğlence rol paneli ${targetChannel} kanalına başarıyla gönderildi!` });
+            }
+
+            // 7. /hatira-rolu-ver (Etkinlik rollerini alan herkese hatıra rolü dağıtma)
+            if (commandName === 'hatira-rolu-ver') {
+                if (!isAdmin) {
+                    return interaction.editReply({ content: '❌ Bu komutu yalnızca Sunucu Yöneticileri kullanabilir.' });
+                }
+
+                ensureGuildDB(db, guildId);
+                const targetRole = interaction.options.getRole('rol', true);
+                const participants = db[guildId].etkinlikRolSahipleri || [];
+
+                if (participants.length === 0) {
+                    return interaction.editReply({
+                        content: '⚠️ Henüz etkinlik panelinden rol almış hiçbir katılımcı kaydı bulunmuyor.'
+                    });
+                }
+
+                let basarili = 0;
+                let hatali = 0;
+
+                for (const uid of participants) {
+                    try {
+                        const member = await interaction.guild.members.fetch(uid).catch(() => null);
+                        if (member) {
+                            if (!member.roles.cache.has(targetRole.id)) {
+                                await member.roles.add(targetRole.id).catch(() => { hatali++; });
+                                basarili++;
+                            } else {
+                                basarili++; // Zaten var
+                            }
+                        }
+                    } catch {
+                        hatali++;
+                    }
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🎖️ Yılbaşı Hatıra Rolü Dağıtımı Tamamlandı!')
+                    .setDescription(
+                        `Kış festivali boyunca eğlence rollerini alan tüm aktif katılımcılara özel hatıra rolü tanımlandı! 🎉\n\n` +
+                        `🎗️ **Tanımlanan Rol:** ${targetRole}\n` +
+                        `👥 **Kayıtlı Katılımcı Sayısı:** \`${participants.length} kişi\`\n` +
+                        `✅ **Rol Verilen / Zaten Sahip:** \`${basarili} kişi\`\n` +
+                        `${hatali > 0 ? `⚠️ **Ulaşılamayan / Hata Alınan:** \`${hatali} kişi\`\n` : ''}\n` +
+                        `*Tüm katılımcılarımıza festivalimize kattıkları neşe için teşekkür ederiz!* ❄️`
+                    )
+                    .setColor(0x2ecc71)
+                    .setFooter({ text: 'Memur Hüsnü Kış Festivali Hatıra Dağıtımı' })
+                    .setTimestamp();
+
+                await interaction.channel.send({ embeds: [embed] }).catch(() => {});
+                return interaction.editReply({ content: `🎖️ ${targetRole} rolü başarıyla **${basarili}** katılımcıya tanımlandı!` });
             }
         }
 
@@ -6591,6 +7248,94 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply(buildMarketView(interaction.guild, db[guildId], interaction.user)).catch(() => { });
             }
 
+            // Market üzerinden Piyango Bileti Satın Alma Butonu
+            if (customId === 'btn_market_buy_lottery') {
+                ensureGuildDB(db, guildId);
+                const uData = db[guildId].users[interaction.user.id];
+                const piyango = db[guildId].piyango;
+
+                if (piyango.biletler[interaction.user.id]) {
+                    return interaction.reply({
+                        content: `🎟️ Zaten bir biletiniz var! Bilet Numaranız: **#${piyango.biletler[interaction.user.id]}**\n*(Kişi başı en fazla 1 bilet satın alınabilir.)*`,
+                        ephemeral: true
+                    });
+                }
+
+                if ((uData.papel || 0) < 100) {
+                    return interaction.reply({
+                        content: `❌ Piyango bileti **100 Papel** değerindedir. Mevcut bakiyeniz: \`${(uData.papel || 0)} Papel\`.\n💡 *Sohbet ederek veya seste kalarak Papel kazanabilirsiniz!*`,
+                        ephemeral: true
+                    });
+                }
+
+                uData.papel -= 100;
+                let ticketNo;
+                do {
+                    ticketNo = String(Math.floor(100000 + Math.random() * 900000));
+                } while (Object.values(piyango.biletler).includes(ticketNo));
+
+                piyango.biletler[interaction.user.id] = ticketNo;
+                saveDB(db);
+
+                // Market görünümünü güncelle veya ephemeral yanıt ver
+                const newView = buildMarketView(interaction.guild, db[guildId], interaction.user);
+                await interaction.update(newView).catch(() => {});
+                return interaction.followUp({
+                    content: `🎉 **Tebrikler!** \`100 Papel\` karşılığında **#${ticketNo}** numaralı Yılbaşı Piyango Biletiniz başarıyla alındı! Bol şanslar dileriz! 🍀`,
+                    ephemeral: true
+                });
+            }
+
+            // Kış Festivali Eğlence Rol Butonları (btn_ev_*)
+            if (customId.startsWith('btn_ev_')) {
+                ensureGuildDB(db, guildId);
+                const roleConfig = ETKINLIK_ROLLER_CONFIG.find(c => c.id === customId);
+                if (!roleConfig) return;
+
+                const member = interaction.member;
+                if (!member) return;
+
+                // Rolü bul veya otomatik oluştur
+                let role = interaction.guild.roles.cache.find(r => r.name === roleConfig.roleName);
+                if (!role) {
+                    try {
+                        role = await interaction.guild.roles.create({
+                            name: roleConfig.roleName,
+                            color: roleConfig.color,
+                            reason: 'Memur Hüsnü Kış Festivali Eğlence Rolü'
+                        });
+                    } catch (e) {
+                        return interaction.reply({
+                            content: `❌ \`${roleConfig.roleName}\` rolü oluşturulamadı. Lütfen botun rol oluşturma / yönetme yetkisini kontrol edin.`,
+                            ephemeral: true
+                        });
+                    }
+                }
+
+                const hasRoleNow = member.roles.cache.has(role.id);
+
+                if (hasRoleNow) {
+                    await member.roles.remove(role.id).catch(() => {});
+                    return interaction.reply({
+                        content: `❄️ **${roleConfig.roleName}** rolü üzerinizden çıkarıldı.`,
+                        ephemeral: true
+                    });
+                } else {
+                    await member.roles.add(role.id).catch(() => {});
+
+                    // Kullanıcıyı hatıra rolü katılımcı listesine kaydet
+                    if (!db[guildId].etkinlikRolSahipleri.includes(member.id)) {
+                        db[guildId].etkinlikRolSahipleri.push(member.id);
+                        saveDB(db);
+                    }
+
+                    return interaction.reply({
+                        content: `🎉 **${roleConfig.roleName}** rolü üzerinize tanımlandı! Kış festivali katılımcı listesine kaydedildiniz. Etkinlik sonunda açılacak **Hatıra Rolünü** almaya hak kazandınız! ⛄`,
+                        ephemeral: true
+                    });
+                }
+            }
+
             if (customId.startsWith('btn_profile_refresh_')) {
                 ensureGuildDB(db, guildId);
                 const targetUid = customId.replace('btn_profile_refresh_', '');
@@ -7725,6 +8470,39 @@ client.on('messageCreate', async message => {
         if (uDataMsg.msgCount === undefined) uDataMsg.msgCount = 0;
         if (uDataMsg.lastMsgTime === undefined) uDataMsg.lastMsgTime = 0;
 
+        // Günlük Giriş / İlk Mesaj Yılbaşı Etkinlik Hediyesi (5-20 Papel & 50-200 XP)
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (uDataMsg.lastDailyEventGift !== todayStr) {
+            uDataMsg.lastDailyEventGift = todayStr;
+            const giftPapel = Math.floor(Math.random() * 16) + 5; // 5 - 20 Papel
+            const giftXp = Math.floor(Math.random() * 151) + 50;  // 50 - 200 XP
+
+            uDataMsg.papel = (uDataMsg.papel || 0) + giftPapel;
+            uDataMsg.xp = (uDataMsg.xp || 0) + giftXp;
+
+            // Seviye kontrolü
+            const newLvl = calculateLevel(uDataMsg.xp);
+            if (newLvl > uDataMsg.level) {
+                uDataMsg.level = newLvl;
+            }
+
+            const giftEmbed = new EmbedBuilder()
+                .setTitle('🎁 Günlük Kış Festivali Hediyeniz Geldi!')
+                .setDescription(
+                    `Selam <@${message.author.id}>! Bugünün ilk mesajını atarak kış festivali günlük sürpriz sandığını açtın! ❄️✨\n\n` +
+                    `💵 **Kazanılan:** \`+${giftPapel} Papel\`\n` +
+                    `⭐ **Kazanılan:** \`+${giftXp} XP\`\n\n` +
+                    `*Her gün ilk mesajında bu hediyeyi toplamayı unutma! Keyifli sohbetler.*`
+                )
+                .setColor(0xe67e22)
+                .setThumbnail('https://cdn-icons-png.flaticon.com/512/3800/3800024.png')
+                .setFooter({ text: 'Memur Hüsnü Günlük Etkinlik Hediyesi • Bu mesaj 15 saniye sonra silinecektir' });
+
+            message.reply({ embeds: [giftEmbed] })
+                .then(m => setTimeout(() => m.delete().catch(() => {}), 15000))
+                .catch(() => {});
+        }
+
         // Mesaj Cooldown (45 saniye)
         if (nowTime - uDataMsg.lastMsgTime >= 45000) {
             uDataMsg.lastMsgTime = nowTime;
@@ -7733,7 +8511,13 @@ client.on('messageCreate', async message => {
             // Seviye sisteminden çıkmamışsa XP ve Seviye kazanır
             if (!uDataMsg.xpDisabled) {
                 // Mesaj başı 5-12 XP
-                const earnedXp = Math.floor(Math.random() * 8) + 5;
+                let earnedXp = Math.floor(Math.random() * 8) + 5;
+
+                // 2X Çift XP Etkinliği Kontrolü
+                if (db[guildId]?.doubleXpUntil && db[guildId].doubleXpUntil > nowTime) {
+                    earnedXp *= 2;
+                }
+
                 uDataMsg.xp += earnedXp;
 
                 // Seviye Atlama Kontrolü (7 Seviye)

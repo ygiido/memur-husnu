@@ -1,7 +1,7 @@
 {
   "name": "memur-husnu",
-  "version": "2.1.17",
-  "description": "Memur Hüsnü v2.1.17 - Anti-Raid Hesap Yaşı Eşiği 15 Güne Yükseltildi",
+  "version": "2.1.18",
+  "description": "Memur Hüsnü v2.1.18 - Aralık Ayı Kış ve Yılbaşı Festival Sistemi",
   "main": "index.js",
   "scripts": {
     "start": "node --dns-result-order=ipv4first index.js"
