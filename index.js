@@ -3931,19 +3931,18 @@ client.once('ready', async () => {
 
     try {
         if (client.application) {
-            await client.application.commands.set(commands);
-            addLiveLog('✅ [ROZET]: Global slash komutları kaydedildi ("Supports Commands" {/} rozeti tetiklendi).');
+            await client.application.commands.set([]);
+            addLiveLog('🧹 Global slash komutları temizlendi (Yerel sunucu komutları tekil olarak aktif).');
         }
     } catch (e) {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Discord Global komutlarının istemcilerde önbelleğe girmesi 1 saati bulabildiği için,
-    // bağlı olduğu sunuculara da komutları anında yükleyelim (Anında görünür):
+    // Komutları yalnızca sunuculara tekil olarak tanımla (Böylece asla çift görünmez ve anında güncellenir):
     for (const guild of client.guilds.cache.values()) {
         try {
             await guild.commands.set(commands);
-            addLiveLog(`✅ [ANINDA GÜNCELLEME]: ${guild.name} sunucusuna tüm komutlar yüklendi.`);
+            addLiveLog(`✅ [TEKİL KOMUT AKTİF]: ${guild.name} sunucusuna komutlar yüklendi.`);
         } catch (err) {
             addLiveLog(`⚠️ [SUNUCU KOMUT YÜKLEME HATASI]: ${guild.name} -> ${err.message}`);
         }
