@@ -7294,6 +7294,12 @@ client.on('interactionCreate', async interaction => {
                 // Rolü bul veya otomatik oluştur
                 let role = interaction.guild.roles.cache.find(r => r.name === roleConfig.roleName);
                 if (!role) {
+                    // Cache'te yoksa API'den tüm rolleri fetch et
+                    const allRoles = await interaction.guild.roles.fetch().catch(() => null);
+                    if (allRoles) role = allRoles.find(r => r.name === roleConfig.roleName);
+                }
+
+                if (!role) {
                     try {
                         role = await interaction.guild.roles.create({
                             name: roleConfig.roleName,
@@ -7306,6 +7312,13 @@ client.on('interactionCreate', async interaction => {
                             ephemeral: true
                         });
                     }
+                }
+
+                // Aynı isimde eski mükerrer kopyalar kalmışsa hepsini temizle, tekile bağla
+                const duplicateRoles = interaction.guild.roles.cache.filter(r => r.name === roleConfig.roleName && r.id !== role.id);
+                for (const [, dRole] of duplicateRoles) {
+                    await member.roles.remove(dRole.id).catch(() => {});
+                    await dRole.delete('Mükerrer etkinlik rolü temizliği').catch(() => {});
                 }
 
                 const hasRoleNow = member.roles.cache.has(role.id);
