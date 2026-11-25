@@ -2645,17 +2645,18 @@ function buildEtkinlikRolePanel() {
     const embed = new EmbedBuilder()
         .setTitle('❄️ Memur Hüsnü Kış Festivali — Eğlence Rolleri')
         .setDescription(
-            `Aralık ayı boyunca sunucumuzu renklendirecek eğlenceli kış rollerini aşağıdaki butonlara tıklayarak üzerinize alabilir veya tekrar tıklayarak çıkarabilirsiniz!\n\n` +
+            `Aralık ayı boyunca sunucumuzu renklendirecek eğlenceli kış rollerini aşağıdaki butonlara tıklayarak seçebilirsiniz!\n\n` +
             `⛄ **Kardan Adam**\n` +
             `🦌 **Kutup Geyiği**\n` +
             `🎅 **Noel Şapkası**\n` +
             `❄️ **Kar Tanesi**\n` +
             `☕ **Sıcak Çikolata**\n\n` +
-            `💡 *Bu rollerden herhangi birini üzerine alan üyelerimiz etkinlik katılımcısı olarak kaydedilecek ve etkinlik sonunda açılacak özel **Hatıra Rolü** kazanacaktır!*`
+            `📌 **Kural:** Her üye aynı anda en fazla **1 adet** eğlence rolü taşıyabilir. Başka bir butona tıkladığınızda eski rolünüz otomatik değiştirilir; aynı butona tekrar tıklarsanız rol üzerinizden çıkarılır.\n\n` +
+            `💡 *Bu rollerden herhangi birini üzerine alan üyelerimiz etkinlik katılımcısı olarak kaydedilecek ve etkinlik sonunda açılacak özel **2027 Hatıra Rolü** kazanacaktır!*`
         )
         .setColor(0x2ecc71)
         .setImage('https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=1000&q=80')
-        .setFooter({ text: 'Memur Hüsnü Kış Festivali • Rol seçimi otomatik kaydedilir' })
+        .setFooter({ text: 'Memur Hüsnü Kış Festivali • Tekil rol seçimi' })
         .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
@@ -7303,6 +7304,17 @@ client.on('interactionCreate', async interaction => {
                         ephemeral: true
                     });
                 } else {
+                    // Tekil Rol Kuralı: Üyenin üzerindeki diğer kış festivali rollerini kaldır
+                    let swappedRoleName = null;
+                    for (const otherCfg of ETKINLIK_ROLLER_CONFIG) {
+                        if (otherCfg.id === customId) continue;
+                        const otherRole = interaction.guild.roles.cache.find(r => r.name === otherCfg.roleName);
+                        if (otherRole && member.roles.cache.has(otherRole.id)) {
+                            await member.roles.remove(otherRole.id).catch(() => { });
+                            swappedRoleName = otherCfg.roleName;
+                        }
+                    }
+
                     await member.roles.add(role.id).catch(() => { });
 
                     // Kullanıcıyı hatıra rolü katılımcı listesine kaydet
@@ -7311,8 +7323,9 @@ client.on('interactionCreate', async interaction => {
                         saveDB(db);
                     }
 
+                    const swapNote = swappedRoleName ? `\n*(Eski rolünüz **${swappedRoleName}** üzerinizden alındı)*` : '';
                     return safeReply(interaction, {
-                        content: `🎉 **${roleConfig.roleName}** rolü üzerinize tanımlandı! Kış festivali katılımcı listesine kaydedildiniz. Etkinlik sonunda açılacak **Hatıra Rolünü** almaya hak kazandınız! ⛄`,
+                        content: `🎉 **${roleConfig.roleName}** rolü üzerinize tanımlandı!${swapNote}\nKış festivali katılımcı listesine kaydedildiniz. Etkinlik sonunda açılacak **2027 Hatıra Rolünü** almaya hak kazandınız! ⛄`,
                         ephemeral: true
                     });
                 }
