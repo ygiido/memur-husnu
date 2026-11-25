@@ -2668,11 +2668,11 @@ function buildButtonRoleDashboard(guild, guildDb, selectedChId = null, alertMsg 
 // ============================================================================
 function getYilbasiAgacData(total = 0) {
     const levels = [
-        { level: 1, title: 'Yeni Dikilmiş Kış Fidanı 🌱', min: 0, max: 25, img: 'https://images.unsplash.com/photo-1543257580-7269da773bf5?w=500&q=80' },
-        { level: 2, title: 'Büyüyen Kar Çamı 🌲', min: 25, max: 70, img: 'https://images.unsplash.com/photo-1512474932049-78ac69ede12c?w=500&q=80' },
-        { level: 3, title: 'Işıklandırılmış Yılbaşı Çamı ✨', min: 70, max: 150, img: 'https://images.unsplash.com/photo-1513297887119-d46091b24bfa?w=500&q=80' },
-        { level: 4, title: 'Süslü & Parıltılı Yılbaşı Ağacı 🎄', min: 150, max: 300, img: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=500&q=80' },
-        { level: 5, title: 'Efsanevi Krallık Yılbaşı Ağacı ⭐', min: 300, max: 300, img: 'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?w=500&q=80' }
+        { level: 1, title: 'Yeni Dikilmiş Kış Fidanı 🌱', min: 0, max: 25, img: 'https://images.unsplash.com/photo-1517299321609-52687d1bc55a?w=600&q=80' },
+        { level: 2, title: 'Büyüyen Kar Çamı 🌲', min: 25, max: 70, img: 'https://images.unsplash.com/photo-1512474932049-78ac69ede12c?w=600&q=80' },
+        { level: 3, title: 'Işıklandırılmış Yılbaşı Çamı ✨', min: 70, max: 150, img: 'https://images.unsplash.com/photo-1513297887119-d46091b24bfa?w=600&q=80' },
+        { level: 4, title: 'Süslü & Parıltılı Yılbaşı Ağacı 🎄', min: 150, max: 300, img: 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?w=600&q=80' },
+        { level: 5, title: 'Efsanevi Krallık Yılbaşı Ağacı ⭐', min: 300, max: 300, img: 'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?w=600&q=80' }
     ];
 
     for (let i = 0; i < levels.length; i++) {
@@ -2713,8 +2713,8 @@ function buildEtkinlikRolePanel() {
             `☕ **Sıcak Çikolata**\n\n` +
             `💡 *Bu rollerden herhangi birini üzerine alan üyelerimiz etkinlik katılımcısı olarak kaydedilecek ve etkinlik sonunda açılacak özel **Hatıra Rolü** kazanacaktır!*`
         )
-        .setColor(0x3498db)
-        .setImage('https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=900&q=80')
+        .setColor(0x2ecc71)
+        .setImage('https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=1000&q=80')
         .setFooter({ text: 'Memur Hüsnü Kış Festivali • Rol seçimi otomatik kaydedilir' })
         .setTimestamp();
 
@@ -3972,6 +3972,8 @@ async function safeReply(interaction, payload) {
         console.error('safeReply Hatası:', err.message);
     }
 }
+
+const etkinlikPaneliLocks = new Set();
 
 // ============================================================================
 // INTERACTION (KOMUT, PANEL, MENÜ, BUTON VE MODAL) YÖNETİMİ
@@ -5625,17 +5627,40 @@ client.on('interactionCreate', async interaction => {
             // 6. /etkinlik-paneli (Kış temalı eğlence buton rolü paneli)
             if (commandName === 'etkinlik-paneli') {
                 if (!isAdmin) {
-                    return interaction.editReply({ content: '❌ Bu komutu yalnızca Sunucu Yöneticileri kullanabilir.' });
+                    return safeReply(interaction, { content: '❌ Bu komutu yalnızca Sunucu Yöneticileri kullanabilir.', ephemeral: true });
                 }
 
                 const targetChannel = interaction.options.getChannel('kanal') || interaction.channel;
                 if (!targetChannel || !targetChannel.isTextBased()) {
-                    return interaction.editReply({ content: '❌ Lütfen geçerli bir metin kanalı belirtin.' });
+                    return safeReply(interaction, { content: '❌ Lütfen geçerli bir metin kanalı belirtin.', ephemeral: true });
                 }
 
-                const panelData = buildEtkinlikRolePanel();
-                await targetChannel.send(panelData);
-                return interaction.editReply({ content: `❄️ Kış Festivali eğlence rol paneli ${targetChannel} kanalına başarıyla gönderildi!` });
+                // Debounce lock (5 saniye kilit ile çift tetiklenme önleme)
+                if (etkinlikPaneliLocks.has(targetChannel.id)) {
+                    return safeReply(interaction, { content: '⏳ Panel zaten bu kanala gönderiliyor veya kısa süre önce gönderildi.', ephemeral: true });
+                }
+                etkinlikPaneliLocks.add(targetChannel.id);
+                setTimeout(() => etkinlikPaneliLocks.delete(targetChannel.id), 5000);
+
+                try {
+                    // Kanaldaki eski mükerrer kış festivali panellerini temizle (daima tek panel garantisi)
+                    const oldMessages = await targetChannel.messages.fetch({ limit: 20 }).catch(() => null);
+                    if (oldMessages && oldMessages.size > 0) {
+                        const duplicatePanels = oldMessages.filter(m =>
+                            m.author.id === client.user.id &&
+                            m.embeds.some(e => e.title && e.title.includes('Kış Festivali — Eğlence Rolleri'))
+                        );
+                        for (const [, oldMsg] of duplicatePanels) {
+                            await oldMsg.delete().catch(() => {});
+                        }
+                    }
+
+                    const panelData = buildEtkinlikRolePanel();
+                    await targetChannel.send(panelData);
+                    return safeReply(interaction, { content: `❄️ Kış Festivali eğlence rol paneli ${targetChannel} kanalına başarıyla gönderildi!`, ephemeral: true });
+                } catch (err) {
+                    return safeReply(interaction, { content: `❌ Panel gönderilirken bir hata oluştu: ${err.message}`, ephemeral: true });
+                }
             }
 
             // 7. /hatira-rolu-ver (Etkinlik rollerini alan herkese hatıra rolü dağıtma)
@@ -7307,7 +7332,7 @@ client.on('interactionCreate', async interaction => {
                             reason: 'Memur Hüsnü Kış Festivali Eğlence Rolü'
                         });
                     } catch (e) {
-                        return interaction.reply({
+                        return safeReply(interaction, {
                             content: `❌ \`${roleConfig.roleName}\` rolü oluşturulamadı. Lütfen botun rol oluşturma / yönetme yetkisini kontrol edin.`,
                             ephemeral: true
                         });
@@ -7325,7 +7350,7 @@ client.on('interactionCreate', async interaction => {
 
                 if (hasRoleNow) {
                     await member.roles.remove(role.id).catch(() => {});
-                    return interaction.reply({
+                    return safeReply(interaction, {
                         content: `❄️ **${roleConfig.roleName}** rolü üzerinizden çıkarıldı.`,
                         ephemeral: true
                     });
@@ -7338,7 +7363,7 @@ client.on('interactionCreate', async interaction => {
                         saveDB(db);
                     }
 
-                    return interaction.reply({
+                    return safeReply(interaction, {
                         content: `🎉 **${roleConfig.roleName}** rolü üzerinize tanımlandı! Kış festivali katılımcı listesine kaydedildiniz. Etkinlik sonunda açılacak **Hatıra Rolünü** almaya hak kazandınız! ⛄`,
                         ephemeral: true
                     });
