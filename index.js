@@ -2674,7 +2674,8 @@ function buildMarketView(guild, guildDb, user) {
     const userPapel = uData.papel || 0;
     const marketRoles = guildDb.marketRoles || [];
     const hasTicket = Boolean(guildDb.piyango?.biletler?.[user.id]);
-    const ticketNo = hasTicket ? guildDb.piyango.biletler[user.id].no : null;
+    const rawTicket = hasTicket ? guildDb.piyango.biletler[user.id] : null;
+    const ticketNo = typeof rawTicket === 'object' && rawTicket !== null ? rawTicket.no : rawTicket;
 
     const selectOptions = [];
     let marketListing = '';
@@ -2715,7 +2716,7 @@ function buildMarketView(guild, guildDb, user) {
         .setDescription(
             `💳 **Mevcut Bakiyeniz:** \`${userPapel.toLocaleString('tr-TR')} Papel\` 💵\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-            `### 🎟️ 2025 Yılbaşı Özel Ürünü\n` +
+            `### 🎟️ 2027 Yılbaşı Özel Ürünü\n` +
             `> ${ticketStatusText}\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
             `### 🛍️ Satışta Olan Roller & Ayrıcalıklar\n\n` +
@@ -3872,20 +3873,20 @@ client.once('ready', async () => {
 
     try {
         if (client.application) {
-            await client.application.commands.set([]);
-            addLiveLog('🧹 Global slash komutları temizlendi (Yerel sunucu komutları tekil olarak aktif).');
+            await client.application.commands.set(commands);
+            addLiveLog('✅ [GLOBAL KOMUTLAR]: Global slash komutları yüklendi (Yeşil Slash Rozeti aktif).');
         }
     } catch (e) {
         addLiveLog(`⚠️ [KOMUT KAYIT UYARISI]: ${e.message}`);
     }
 
-    // Komutları yalnızca sunuculara tekil olarak tanımla (Böylece asla çift görünmez ve anında güncellenir):
+    // Sunuculardaki eski yerel komutları temizle (Böylece komutlar asla çift görünmez):
     for (const guild of client.guilds.cache.values()) {
         try {
-            await guild.commands.set(commands);
-            addLiveLog(`✅ [TEKİL KOMUT AKTİF]: ${guild.name} sunucusuna komutlar yüklendi.`);
+            await guild.commands.set([]);
+            addLiveLog(`🧹 [SUNUCU KOMUT TEMİZLİĞİ]: ${guild.name} yerel kopyası temizlendi (Tekil Global aktif).`);
         } catch (err) {
-            addLiveLog(`⚠️ [SUNUCU KOMUT YÜKLEME HATASI]: ${guild.name} -> ${err.message}`);
+            addLiveLog(`⚠️ [SUNUCU KOMUT TEMİZLEME UYARISI]: ${guild.name} -> ${err.message}`);
         }
     }
 });
@@ -5338,7 +5339,7 @@ client.on('interactionCreate', async interaction => {
                 };
 
                 const embed = new EmbedBuilder()
-                    .setTitle('🏆 Memur Hüsnü — 2025 Yılının Enleri Ödül Töreni 🌟')
+                    .setTitle('🏆 Memur Hüsnü — 2027 Yılının Enleri Ödül Töreni 🌟')
                     .setDescription(
                         `Geride bıraktığımız koskoca bir yılda sunucumuzun en aktif, en çalışkan, en zengin ve en haylaz üyelerini gururla takdim ediyoruz! 🥂🎉\n\n` +
                         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -5357,7 +5358,7 @@ client.on('interactionCreate', async interaction => {
                     .setFooter({ text: 'Memur Hüsnü Yılın Enleri Töreni • Yeni yılınız kutlu olsun!' })
                     .setTimestamp();
 
-                return interaction.editReply({ embeds: [embed] });
+                return safeReply(interaction, { embeds: [embed] });
             }
 
             // 4. /piyango (Yılbaşı Milli Piyangosu)
@@ -5366,16 +5367,20 @@ client.on('interactionCreate', async interaction => {
                 const islem = interaction.options.getString('islem', true);
                 const piyango = db[guildId].piyango;
 
+                if (!db[guildId].users[interaction.user.id]) {
+                    db[guildId].users[interaction.user.id] = { papel: 0 };
+                }
+
                 if (islem === 'al') {
                     const uData = db[guildId].users[interaction.user.id];
                     if (piyango.biletler[interaction.user.id]) {
-                        return interaction.editReply({
+                        return safeReply(interaction, {
                             content: `🎟️ Zaten bir biletiniz var! Bilet Numaranız: **#${piyango.biletler[interaction.user.id]}**\n*(Adil şans için kişi başı en fazla 1 bilet alınabilir.)*`
                         });
                     }
 
                     if ((uData.papel || 0) < 100) {
-                        return interaction.editReply({
+                        return safeReply(interaction, {
                             content: `❌ Piyango bileti **100 Papel** değerindedir. Mevcut bakiyeniz: \`${(uData.papel || 0)} Papel\`.\n💡 *Sohbet ederek veya seste vakit geçirerek papel biriktirebilirsiniz.*`
                         });
                     }
@@ -5393,7 +5398,7 @@ client.on('interactionCreate', async interaction => {
                     const embed = new EmbedBuilder()
                         .setTitle('🎟️ Yılbaşı Özel Piyango Biletiniz Kesildi!')
                         .setDescription(
-                            `Tebrikler <@${interaction.user.id}>! Büyük yılbaşı çekilişinde yerinizi aldınız. 🎉\n\n` +
+                            `Tebrikler <@${interaction.user.id}>! Büyük 2027 yılbaşı çekilişinde yerinizi aldınız. 🎉\n\n` +
                             `🎫 **Şanslı Bilet Numaranız:** \`#${ticketNo}\`\n` +
                             `💰 **Ödenen Tutar:** \`100 Papel\`\n` +
                             `👥 **Toplam Katılımcı:** \`${Object.keys(piyango.biletler).length} Kişi\`\n` +
@@ -5405,13 +5410,13 @@ client.on('interactionCreate', async interaction => {
                         .setFooter({ text: 'Memur Hüsnü Milli Piyango İdaresi' })
                         .setTimestamp();
 
-                    return interaction.editReply({ embeds: [embed] });
+                    return safeReply(interaction, { embeds: [embed] });
                 }
 
                 if (islem === 'bilet') {
                     const ticketNo = piyango.biletler[interaction.user.id];
                     if (!ticketNo) {
-                        return interaction.editReply({
+                        return safeReply(interaction, {
                             content: `❌ Henüz bir piyango biletiniz bulunmuyor!\n💡 \`/piyango islem:al\` komutuyla veya \`/market\` üzerinden **100 Papel** karşılığında biletinizi hemen alabilirsiniz.`
                         });
                     }
@@ -5429,7 +5434,7 @@ client.on('interactionCreate', async interaction => {
                         .setThumbnail('https://cdn-icons-png.flaticon.com/512/2534/2534204.png')
                         .setFooter({ text: 'Memur Hüsnü Milli Piyango İdaresi' });
 
-                    return interaction.editReply({ embeds: [embed] });
+                    return safeReply(interaction, { embeds: [embed] });
                 }
 
                 if (islem === 'liste') {
@@ -5452,17 +5457,17 @@ client.on('interactionCreate', async interaction => {
                         .setFooter({ text: 'Bilet fiyatı 100 Papel • /piyango islem:al' })
                         .setTimestamp();
 
-                    return interaction.editReply({ embeds: [embed] });
+                    return safeReply(interaction, { embeds: [embed] });
                 }
 
                 if (islem === 'cek') {
                     if (!isAdmin) {
-                        return interaction.editReply({ content: '❌ Piyango çekilişini yalnızca Sunucu Yöneticileri başlatabilir.' });
+                        return safeReply(interaction, { content: '❌ Piyango çekilişini yalnızca Sunucu Yöneticileri başlatabilir.' });
                     }
 
                     const entries = Object.entries(piyango.biletler);
                     if (entries.length < 2) {
-                        return interaction.editReply({
+                        return safeReply(interaction, {
                             content: `❌ Çekiliş yapabilmek için havuzda en az **2 katılımcı** olmalıdır. Şu anki bilet sayısı: \`${entries.length}\`.`
                         });
                     }
@@ -5531,7 +5536,7 @@ client.on('interactionCreate', async interaction => {
                         .setFooter({ text: 'Memur Hüsnü Milli Piyango Özel Çekilişi' })
                         .setTimestamp();
 
-                    return interaction.editReply({ embeds: [embed] });
+                    return safeReply(interaction, { embeds: [embed] });
                 }
             }
 
@@ -7212,18 +7217,21 @@ client.on('interactionCreate', async interaction => {
             // Market üzerinden Piyango Bileti Satın Alma Butonu
             if (customId === 'btn_market_buy_lottery') {
                 ensureGuildDB(db, guildId);
+                if (!db[guildId].users[interaction.user.id]) {
+                    db[guildId].users[interaction.user.id] = { papel: 0 };
+                }
                 const uData = db[guildId].users[interaction.user.id];
                 const piyango = db[guildId].piyango;
 
                 if (piyango.biletler[interaction.user.id]) {
-                    return interaction.reply({
+                    return safeReply(interaction, {
                         content: `🎟️ Zaten bir biletiniz var! Bilet Numaranız: **#${piyango.biletler[interaction.user.id]}**\n*(Kişi başı en fazla 1 bilet satın alınabilir.)*`,
                         ephemeral: true
                     });
                 }
 
                 if ((uData.papel || 0) < 100) {
-                    return interaction.reply({
+                    return safeReply(interaction, {
                         content: `❌ Piyango bileti **100 Papel** değerindedir. Mevcut bakiyeniz: \`${(uData.papel || 0)} Papel\`.\n💡 *Sohbet ederek veya seste kalarak Papel kazanabilirsiniz!*`,
                         ephemeral: true
                     });
@@ -7238,11 +7246,11 @@ client.on('interactionCreate', async interaction => {
                 piyango.biletler[interaction.user.id] = ticketNo;
                 saveDB(db);
 
-                // Market görünümünü güncelle veya ephemeral yanıt ver
+                // Market görünümünü güncelle ve ephemeral yanıt ver
                 const newView = buildMarketView(interaction.guild, db[guildId], interaction.user);
                 await interaction.update(newView).catch(() => { });
                 return interaction.followUp({
-                    content: `🎉 **Tebrikler!** \`100 Papel\` karşılığında **#${ticketNo}** numaralı Yılbaşı Piyango Biletiniz başarıyla alındı! Bol şanslar dileriz! 🍀`,
+                    content: `🎉 **Tebrikler!** \`100 Papel\` karşılığında **#${ticketNo}** numaralı 2027 Yılbaşı Piyango Biletiniz başarıyla alındı! Bol şanslar dileriz! 🍀`,
                     ephemeral: true
                 });
             }
