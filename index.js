@@ -1309,66 +1309,6 @@ setInterval(async () => {
 }, 30000);
 
 // ============================================================================
-// GÜNLÜK RASTGELE 2X ÇİFT XP ETKİNLİK MOTORU (GÜNDE 1-2 KEZ SÜRPRİZ XP SAATİ)
-// ============================================================================
-setInterval(async () => {
-    try {
-        const now = Date.now();
-        const db = getDB();
-        for (const guild of client.guilds.cache.values()) {
-            ensureGuildDB(db, guild.id);
-            const gDb = db[guild.id];
-            if (!gDb.xpEnabled) continue;
-
-            // Eğer şu an aktif bir çift XP etkinliği varsa geç
-            if (gDb.doubleXpUntil && gDb.doubleXpUntil > now) continue;
-
-            const todayStr = new Date().toISOString().split('T')[0];
-            if (gDb.lastRandomXpDay !== todayStr) {
-                gDb.lastRandomXpDay = todayStr;
-                gDb.randomXpTodayCount = 0;
-            }
-
-            // Günde en fazla 2 kez rastgele tetiklensin
-            if ((gDb.randomXpTodayCount || 0) >= 2) continue;
-
-            // Her 15 dakikada bir %12 şansla rastgele 30 dakikalık 2x XP başlasın
-            if (Math.random() < 0.12) {
-                const durationMinutes = 30;
-                const bitis = now + (durationMinutes * 60 * 1000);
-                gDb.doubleXpUntil = bitis;
-                gDb.randomXpTodayCount = (gDb.randomXpTodayCount || 0) + 1;
-                saveDB(db);
-
-                // Duyuru kanalını veya sistem kanalını bulup duyur
-                const targetChannel = (gDb.duyuruKanal && guild.channels.cache.get(gDb.duyuruKanal)) ||
-                    guild.systemChannel ||
-                    guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages));
-
-                if (targetChannel) {
-                    const embed = new EmbedBuilder()
-                        .setTitle('⚡ SÜRPRİZ 2X ÇİFT XP SAATİ BAŞLADI! ⚡')
-                        .setDescription(
-                            `🎉 **Kış Şanslı Saati Geldi!**\n\n` +
-                            `Önümüzdeki **${durationMinutes} dakika** boyunca sunucuda sohbette yazılan tüm mesajlar ve seste durulan tüm dakikalar **2 KAT DAHA FAZLA XP** kazandırıyor! 🚀🔥\n\n` +
-                            `⏳ **Bitiş:** <t:${Math.floor(bitis / 1000)}:R>\n\n` +
-                            `*Bu fırsatı kaçırma, sohbete ve odalara koş!* 🎙️💬`
-                        )
-                        .setColor(0xe74c3c)
-                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/3176/3176298.png')
-                        .setFooter({ text: 'Memur Hüsnü Otomatik Sürpriz XP Etkinliği' })
-                        .setTimestamp();
-
-                    targetChannel.send({ embeds: [embed] }).catch(() => {});
-                }
-            }
-        }
-    } catch (err) {
-        console.error('Otomatik Sürpriz XP Etkinliği hatası:', err);
-    }
-}, 15 * 60 * 1000); // 15 dakikada bir kontrol et
-
-// ============================================================================
 // GELİŞMİŞ KÜFÜR VE ARGO TESPİT MOTORU (ANTI-BYPASS & BAĞLAM KORUMALI)
 // ============================================================================
 function kufurTespitEt(metin, customList = []) {
@@ -5267,7 +5207,7 @@ client.on('interactionCreate', async interaction => {
 
                 uData.lastAgac = now;
                 db[guildId].yilbasiAgac.totalGelistirme = (db[guildId].yilbasiAgac.totalGelistirme || 0) + 1;
-                
+
                 // +50 XP Ödülü
                 const bonusXp = 50;
                 uData.xp = (uData.xp || 0) + bonusXp;
@@ -5277,7 +5217,7 @@ client.on('interactionCreate', async interaction => {
                 if (newLvl > (uData.level || 0)) {
                     uData.level = newLvl;
                     const roleId = db[guildId]?.levelRoles?.[String(newLvl)];
-                    if (roleId) interaction.member?.roles.add(roleId).catch(() => {});
+                    if (roleId) interaction.member?.roles.add(roleId).catch(() => { });
                 }
 
                 saveDB(db);
@@ -5651,7 +5591,7 @@ client.on('interactionCreate', async interaction => {
                             m.embeds.some(e => e.title && e.title.includes('Kış Festivali — Eğlence Rolleri'))
                         );
                         for (const [, oldMsg] of duplicatePanels) {
-                            await oldMsg.delete().catch(() => {});
+                            await oldMsg.delete().catch(() => { });
                         }
                     }
 
@@ -7300,7 +7240,7 @@ client.on('interactionCreate', async interaction => {
 
                 // Market görünümünü güncelle veya ephemeral yanıt ver
                 const newView = buildMarketView(interaction.guild, db[guildId], interaction.user);
-                await interaction.update(newView).catch(() => {});
+                await interaction.update(newView).catch(() => { });
                 return interaction.followUp({
                     content: `🎉 **Tebrikler!** \`100 Papel\` karşılığında **#${ticketNo}** numaralı Yılbaşı Piyango Biletiniz başarıyla alındı! Bol şanslar dileriz! 🍀`,
                     ephemeral: true
@@ -7342,20 +7282,20 @@ client.on('interactionCreate', async interaction => {
                 // Aynı isimde eski mükerrer kopyalar kalmışsa hepsini temizle, tekile bağla
                 const duplicateRoles = interaction.guild.roles.cache.filter(r => r.name === roleConfig.roleName && r.id !== role.id);
                 for (const [, dRole] of duplicateRoles) {
-                    await member.roles.remove(dRole.id).catch(() => {});
-                    await dRole.delete('Mükerrer etkinlik rolü temizliği').catch(() => {});
+                    await member.roles.remove(dRole.id).catch(() => { });
+                    await dRole.delete('Mükerrer etkinlik rolü temizliği').catch(() => { });
                 }
 
                 const hasRoleNow = member.roles.cache.has(role.id);
 
                 if (hasRoleNow) {
-                    await member.roles.remove(role.id).catch(() => {});
+                    await member.roles.remove(role.id).catch(() => { });
                     return safeReply(interaction, {
                         content: `❄️ **${roleConfig.roleName}** rolü üzerinizden çıkarıldı.`,
                         ephemeral: true
                     });
                 } else {
-                    await member.roles.add(role.id).catch(() => {});
+                    await member.roles.add(role.id).catch(() => { });
 
                     // Kullanıcıyı hatıra rolü katılımcı listesine kaydet
                     if (!db[guildId].etkinlikRolSahipleri.includes(member.id)) {
@@ -8344,7 +8284,7 @@ client.on('interactionCreate', async interaction => {
                     );
 
                     const targetModRole = db[guildId].altYetkiliRol || db[guildId].yetkiliRol || db[guildId].ustYetkiliRol;
-                const mentionText = targetModRole ? `<@${interaction.user.id}> | <@&${targetModRole}>` : `<@${interaction.user.id}>`;
+                    const mentionText = targetModRole ? `<@${interaction.user.id}> | <@&${targetModRole}>` : `<@${interaction.user.id}>`;
                     await ticketChannel.send({ content: mentionText, embeds: [embed], components: [row] });
 
                     sendLog(interaction.guild, 'logSunucu', {
@@ -8533,8 +8473,10 @@ client.on('messageCreate', async message => {
                 .setFooter({ text: 'Memur Hüsnü Günlük Etkinlik Hediyesi • Bu mesaj 15 saniye sonra silinecektir' });
 
             message.reply({ embeds: [giftEmbed] })
-                .then(m => setTimeout(() => m.delete().catch(() => {}), 15000))
-                .catch(() => {});
+                .then(m => setTimeout(() => m.delete().catch(() => { }), 15000))
+                .catch(() => { });
+
+            saveDB(db);
         }
 
         // Mesaj Cooldown (45 saniye)

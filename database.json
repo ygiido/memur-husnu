@@ -37,17 +37,17 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 81685,
+                "xp": 81823,
                 "level": 1,
-                "papel": 3793,
-                "msgCount": 265,
-                "lastMsgTime": 1795564633281,
+                "papel": 3802,
+                "msgCount": 266,
+                "lastMsgTime": 1795619991727,
                 "lastVoiceXp": 1795564792877,
                 "lastDaily": 1793541193968,
                 "spentPapel": 315,
                 "xpDisabled": false,
                 "martiansBugTelafi5k15k": true,
-                "lastDailyEventGift": "2026-11-24",
+                "lastDailyEventGift": "2026-11-25",
                 "lastAgac": 1795564339993
             },
             "1143497130409996328": {
@@ -71,12 +71,12 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 119430,
+                "xp": 122705,
                 "level": 1,
-                "papel": 928,
+                "papel": 958,
                 "msgCount": 140,
                 "lastMsgTime": 1795565066341,
-                "lastVoiceXp": 1795564792877,
+                "lastVoiceXp": 1795620196366,
                 "martiansBugTelafi5k15k": true,
                 "lastDailyEventGift": "2026-11-25"
             },
@@ -86,10 +86,10 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 152667,
+                "xp": 155332,
                 "level": 2,
-                "papel": 1300204,
-                "lastVoiceXp": 1795564702872,
+                "papel": 1300225,
+                "lastVoiceXp": 1795620286370,
                 "msgCount": 13,
                 "lastMsgTime": 1795382272101,
                 "martiansBugTelafi5k15k": true
@@ -340,10 +340,10 @@
                 "lastJoin": 1793810725941,
                 "inviterId": "592693420485640193",
                 "inviteCode": "H95HFNp9y",
-                "xp": 89513,
+                "xp": 90347,
                 "level": 1,
-                "papel": 1552,
-                "lastVoiceXp": 1795564792877,
+                "papel": 1559,
+                "lastVoiceXp": 1795620286370,
                 "msgCount": 6,
                 "lastMsgTime": 1795528582121,
                 "martiansBugTelafi5k15k": true,
@@ -508,10 +508,10 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 8910,
+                "xp": 8961,
                 "level": 0,
                 "papel": 33,
-                "lastVoiceXp": 1795540970376,
+                "lastVoiceXp": 1795615616732,
                 "martiansBugTelafi5k15k": true,
                 "msgCount": 11,
                 "lastMsgTime": 1795250213730,
@@ -588,12 +588,12 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 136978,
+                "xp": 139559,
                 "level": 1,
-                "papel": 196,
+                "papel": 214,
                 "msgCount": 23,
                 "lastMsgTime": 1795564560361,
-                "lastVoiceXp": 1795564792877,
+                "lastVoiceXp": 1795620286370,
                 "linkUyari": 1,
                 "lastLinkTime": 1794264294992,
                 "martiansBugTelafi5k15k": true,
@@ -708,13 +708,14 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 12073,
+                "xp": 12827,
                 "level": 0,
-                "papel": 66,
-                "msgCount": 6,
-                "lastMsgTime": 1794558120188,
-                "lastVoiceXp": 1795557680550,
-                "martiansBugTelafi5k15k": true
+                "papel": 78,
+                "msgCount": 11,
+                "lastMsgTime": 1795620294998,
+                "lastVoiceXp": 1795620346372,
+                "martiansBugTelafi5k15k": true,
+                "lastDailyEventGift": "2026-11-25"
             },
             "744223238673924110": {
                 "jailCount": 0,
@@ -748,10 +749,10 @@
                 "sicilli": false,
                 "kufurUyari": 0,
                 "spamWarn": 0,
-                "xp": 21318,
+                "xp": 21335,
                 "level": 0,
                 "papel": 158,
-                "lastVoiceXp": 1795499029782,
+                "lastVoiceXp": 1795566655956,
                 "martiansBugTelafi5k15k": true,
                 "msgCount": 2,
                 "lastMsgTime": 1794862941719
@@ -1940,8 +1941,8 @@
         "ticketPanels": {
             "mwha98w9": {
                 "catId": "1548265651452252250",
-                "title": "Destek ve Başvuru",
-                "welcomeMsg": "Talebiniz ve ilettiğiniz bilgiler aşağıda yer almaktadır. Yetkililerimiz en kısa sürede sizinle ilgilenecektir. Bu süreçte sabırla beklemeniz ve gereksiz etiket atmamanız rica olunur."
+                "title": "Destek ve Ba\u015fvuru",
+                "welcomeMsg": "Talebiniz ve iletti\u011finiz bilgiler a\u015fa\u011f\u0131da yer almaktad\u0131r. Yetkililerimiz en k\u0131sa s\u00fcrede sizinle ilgilenecektir. Bu s\u00fcre\u00e7te sab\u0131rla beklemeniz ve gereksiz etiket atmaman\u0131z rica olunur."
             }
         },
         "odaKanal": "1570210886852022413",
@@ -2118,43 +2119,43 @@
                 "id": "1569377245003518075",
                 "messageId": "1569377245003518075",
                 "channelId": "1538928603067187386",
-                "title": "**RENK ROLLERİ**",
-                "description": "**Aşağıdaki butonlardan istediğiniz renkleri alabilirsiniz!**\n\n**Desteğiniz için teşekkürler.**",
+                "title": "**RENK ROLLER\u0130**",
+                "description": "**A\u015fa\u011f\u0131daki butonlardan istedi\u011finiz renkleri alabilirsiniz!**\n\n**Deste\u011finiz i\u00e7in te\u015fekk\u00fcrler.**",
                 "color": "Mor",
                 "imageUrl": "https://cdn.discordapp.com/attachments/1537933764477456549/1569377058243608728/5724b3c2-15d5-4a24-908e-ae83f835731f.png?ex=6af33bc8&is=6af1ea48&hm=eb971ede9280361f488505590c76b45e9f1b1c9846b10e8a4a0779689ececb7a&",
                 "buttonColor": "Mavi",
                 "roles": [
                     {
                         "roleId": "1538928601985196048",
-                        "label": "✦ Siyah"
+                        "label": "\u2726 Siyah"
                     },
                     {
                         "roleId": "1538928601985196045",
-                        "label": "✦  Mor"
+                        "label": "\u2726  Mor"
                     },
                     {
                         "roleId": "1538928601985196047",
-                        "label": "✦ Kırmızı"
+                        "label": "\u2726 K\u0131rm\u0131z\u0131"
                     },
                     {
                         "roleId": "1538928601985196046",
-                        "label": "✦ Sarı"
+                        "label": "\u2726 Sar\u0131"
                     },
                     {
                         "roleId": "1538928601985196043",
-                        "label": "✦ Mavi"
+                        "label": "\u2726 Mavi"
                     },
                     {
                         "roleId": "1538928601985196044",
-                        "label": "✦ Yeşil"
+                        "label": "\u2726 Ye\u015fil"
                     },
                     {
                         "roleId": "1569376039338250410",
-                        "label": "✦ Pembe"
+                        "label": "\u2726 Pembe"
                     },
                     {
                         "roleId": "1569376042018279464",
-                        "label": "✦  Beyaz"
+                        "label": "\u2726  Beyaz"
                     }
                 ],
                 "createdAt": 1794239092971
@@ -2163,8 +2164,8 @@
                 "id": "1569378373317296329",
                 "messageId": "1569378373317296329",
                 "channelId": "1538928603067187385",
-                "title": "**DUYURU ROLLERİ**",
-                "description": "Aşağıdaki rolleri alırsanız etkinliklerden haberdar olabilirsiniz.",
+                "title": "**DUYURU ROLLER\u0130**",
+                "description": "A\u015fa\u011f\u0131daki rolleri al\u0131rsan\u0131z etkinliklerden haberdar olabilirsiniz.",
                 "color": "Mor",
                 "imageUrl": "https://cdn.discordapp.com/attachments/1537933764477456549/1569377077944127569/d82b04de-dea6-4115-8d6b-8e66168093ac.png?ex=6af33bcc&is=6af1ea4c&hm=cc869856d698145c2d987a72b751e77a07b6b66dade0bdba74143dd66628b296&",
                 "buttonColor": "Mavi",
@@ -2192,8 +2193,8 @@
                 "id": "1569379024386523269",
                 "messageId": "1569379024386523269",
                 "channelId": "1538928603067187385",
-                "title": "**DUYURU ROLLERİ**",
-                "description": "**Aşağıdaki butonlara tıklayarak duyuru rolleri alabilirsiniz. **",
+                "title": "**DUYURU ROLLER\u0130**",
+                "description": "**A\u015fa\u011f\u0131daki butonlara t\u0131klayarak duyuru rolleri alabilirsiniz. **",
                 "color": "Mor",
                 "imageUrl": "https://cdn.discordapp.com/attachments/1537933764477456549/1569377077944127569/d82b04de-dea6-4115-8d6b-8e66168093ac.png?ex=6af33bcc&is=6af1ea4c&hm=cc869856d698145c2d987a72b751e77a07b6b66dade0bdba74143dd66628b296&",
                 "buttonColor": "Mavi",
@@ -2239,7 +2240,7 @@
         ],
         "doubleXpUntil": 0,
         "lastRandomXpDay": "2026-11-25",
-        "randomXpTodayCount": 0
+        "randomXpTodayCount": 2
     },
     "1265700826387714153": {
         "users": {
@@ -2435,7 +2436,7 @@
         "etkinlikRolSahipleri": [],
         "doubleXpUntil": 0,
         "lastRandomXpDay": "2026-11-25",
-        "randomXpTodayCount": 0
+        "randomXpTodayCount": 2
     },
     "977315836714971187": {
         "users": {
@@ -2675,7 +2676,7 @@
                 "messageId": "1569116837604626493",
                 "channelId": "977315836714971190",
                 "guildId": "977315836714971187",
-                "prize": "yiğitin amcıgıı",
+                "prize": "yi\u011fitin amc\u0131g\u0131\u0131",
                 "winnersCount": 1,
                 "endsAt": 1794177021752,
                 "createdAt": 1794177007300,
@@ -2710,9 +2711,9 @@
             "biletler": {}
         },
         "etkinlikRolSahipleri": [],
-        "doubleXpUntil": 1795567372875,
+        "doubleXpUntil": 0,
         "lastRandomXpDay": "2026-11-25",
-        "randomXpTodayCount": 1
+        "randomXpTodayCount": 2
     },
     "1167555121723490466": {
         "users": {},
